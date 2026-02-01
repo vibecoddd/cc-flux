@@ -94,7 +94,30 @@ go build -o cc-flux.exe .
 
 ### Step 2: Connect Claude Code
 
-... (Connect your Claude Code CLI here)
+Once the proxy is running (default: `http://localhost:8080`), you need to tell Claude Code to use it as the backend instead of the default Anthropic API.
+
+#### Option A: Using Environment Variables (Recommended)
+Set the `CLAUDE_BASE_URL` (or `ANTHROPIC_BASE_URL` depending on your version) to point to the proxy:
+
+*   **Linux / macOS**:
+    ```bash
+    export ANTHROPIC_BASE_URL=http://localhost:8080/v1
+    claude
+    ```
+*   **Windows (PowerShell)**:
+    ```powershell
+    $env:ANTHROPIC_BASE_URL="http://localhost:8080/v1"
+    claude
+    ```
+
+#### Option B: Using the `--api-url` flag
+If your version of the Claude CLI supports it, you can pass the URL directly:
+```bash
+claude --api-url http://localhost:8080/v1
+```
+
+#### Option C: Using Unix Sockets (Advanced)
+If you configured `SOCKET_PATH` in the proxy (e.g., `/tmp/cc-flux.sock`), you can connect via curl-compatible tools or wrappers that support sockets, though environment variables are typically used for the CLI.
 
 ---
 
