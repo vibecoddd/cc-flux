@@ -1,0 +1,26 @@
+[
+  {
+    "id": "openai-gpt4o",
+    "name": "OpenAI - GPT-4o",
+    "provider": "openai",
+    "baseUrl": "https://api.openai.com/v1",
+    "apiKey": "", 
+    "model": "gpt-4o"
+  },
+  {
+    "id": "deepseek-reasoner",
+    "name": "DeepSeek - Reasoner (R1)",
+    "provider": "deepseek",
+    "baseUrl": "https://api.deepseek.com",
+    "apiKey": "",
+    "model": "deepseek-reasoner"
+  },
+  {
+    "id": "ollama-local",
+    "name": "Local - Ollama (Llama 3)",
+    "provider": "ollama",
+    "baseUrl": "http://localhost:11434/v1",
+    "apiKey": "ollama",
+    "model": "llama3"
+  }
+]
