@@ -43,27 +43,54 @@ cd ../tui
 go build -o cc-flux.exe .
 ```
 
-### 3. Configuration
+## Configuration
 
-1.  **Proxy Env**: Create or edit `proxy/.env`:
-    ```env
-    PORT=8080
-    TARGET_API_KEY=your_default_api_key
-    ```
-2.  **Providers**: Customize your model list in `tui/providers.json`.
+- **Proxy**: Edit `proxy/.env` for default startup settings.
+    - **Port**: Change `PORT=8080`.
+    - **IPC (Optional)**: Set `SOCKET_PATH` for higher performance.
+        - Windows: `\\.\pipe\cc-flux`
+        - Linux/Mac: `/tmp/cc-flux.sock`
+- **TUI**: Edit `tui/providers.json` to add/remove model presets.
 
 ---
 
 ## 🚀 Usage
 
 ### Step 1: Start CC-Flux
-The easiest way is to use the provided Windows batch script:
-```cmd
-start_cc_flux.bat
-```
-*Or manually:*
-1.  Terminal 1: `cd proxy && npm start`
-2.  Terminal 2: `cd tui && ./cc-flux.exe`
+
+**Option A: Quick Start**
+
+*   **Windows**:
+    ```cmd
+    start_cc_flux.bat
+    ```
+*   **Linux / macOS**:
+    ```bash
+    chmod +x start_cc_flux.sh
+    ./start_cc_flux.sh
+    ```
+
+**Option B: Manual Start**
+
+1.  Start the Proxy:
+    ```bash
+    cd proxy
+    npm start
+    ```
+    (Default port: 8080)
+
+2.  Start the TUI (in a new terminal):
+    *   **Windows**:
+        ```bash
+        cd tui
+        ./cc-flux.exe
+        ```
+    *   **Linux / macOS**:
+        ```bash
+        cd tui
+        go build -o cc-flux .
+        ./cc-flux
+        ```
 
 ### Step 2: Connect Claude Code
 Point Claude Code to the proxy. Depending on the Claude Code version/configuration, you typically set the base URL:
