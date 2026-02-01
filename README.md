@@ -93,11 +93,40 @@ go build -o cc-flux.exe .
         ```
 
 ### Step 2: Connect Claude Code
-Point Claude Code to the proxy. Depending on the Claude Code version/configuration, you typically set the base URL:
-```bash
-export CLAUDE_BASE_URL=http://localhost:8080/v1
-claude
-```
+
+... (Connect your Claude Code CLI here)
+
+---
+
+## 📖 Common Operations
+
+### 1. Switching Models
+1.  Ensure the **Proxy** is running.
+2.  Open the **TUI Controller** (`cc-flux`).
+3.  Use the **Arrow Keys (Up/Down)** or **j/k** to navigate the list.
+4.  Press **Enter** to select a model. 
+    - The Proxy will instantly switch its backend.
+    - Status will update to `Successfully switched to [Model Name]`.
+5.  Press **q** or **Ctrl+C** to exit the TUI (the Proxy will continue running in the background).
+
+### 2. Adding New Model Providers
+1.  Open `tui/providers.json`.
+2.  Add a new JSON object to the array:
+    ```json
+    {
+      "id": "my-custom-model",
+      "name": "My Custom Model",
+      "provider": "openai",
+      "baseUrl": "https://api.example.com/v1",
+      "apiKey": "your-api-key",
+      "model": "model-name-123"
+    }
+    ```
+3.  Restart the TUI to see the new entry.
+
+### 3. Tuning for Local Models (Ollama)
+- **Retry Mode**: If your local model often outputs invalid tool-call JSON, ensure `RETRY_ENABLED=true` is set in `proxy/.env`.
+- **System Prompts**: The proxy automatically injects formatting instructions for `ollama` providers to improve reliability.
 
 ---
 
