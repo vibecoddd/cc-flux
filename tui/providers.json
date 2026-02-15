@@ -16,6 +16,22 @@
     "model": "deepseek-reasoner"
   },
   {
+    "id": "minimax-6.5",
+    "name": "MiniMax - abab6.5-chat",
+    "provider": "openai",
+    "baseUrl": "https://api.minimax.chat/v1",
+    "apiKey": "",
+    "model": "abab6.5-chat"
+  },
+  {
+    "id": "zhipu-glm-4",
+    "name": "Zhipu AI - GLM-4",
+    "provider": "openai",
+    "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+    "apiKey": "",
+    "model": "glm-4"
+  },
+  {
     "id": "ollama-local",
     "name": "Local - Ollama (Llama 3)",
     "provider": "ollama",
