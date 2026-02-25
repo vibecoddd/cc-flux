@@ -1,19 +1,40 @@
 {
-  "name": "proxy",
+  "name": "cc-flux",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+  "description": "Multimodal Coding Agent Proxy - Decouple Claude Code from Anthropic API",
+  "main": "src/server.js",
+  "bin": {
+    "cc-flux": "./bin/cc-flux.js"
   },
-  "keywords": [],
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/server.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "postinstall": "echo 'CC-Flux installed! Run: cc-flux start'"
+  },
+  "keywords": [
+    "claude",
+    "proxy",
+    "anthropic",
+    "openai",
+    "ollama",
+    "deepseek",
+    "coding-agent"
+  ],
   "author": "",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "axios": "^1.13.4",
     "dotenv": "^17.2.3",
     "fastify": "^5.7.2",
     "uuid": "^13.0.0"
-  }
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cc-flux/cc-flux.git"
+  },
+  "preferGlobal": true
 }

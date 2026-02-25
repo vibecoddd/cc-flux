@@ -1,0 +1,25 @@
+{
+  "name": "cc-flux",
+  "version": "1.0.0",
+  "description": "Multimodal Coding Agent Proxy - Decouple Claude Code from Anthropic API",
+  "workspaces": [
+    "proxy",
+    "tui"
+  ],
+  "scripts": {
+    "start": "cd proxy && npm run start",
+    "tui": "cd tui && go build -o cc-flux .",
+    "install-all": "npm install && cd proxy && npm install"
+  },
+  "keywords": [
+    "claude",
+    "proxy",
+    "anthropic",
+    "openai",
+    "ollama",
+    "deepseek",
+    "coding-agent"
+  ],
+  "author": "",
+  "license": "MIT"
+}
