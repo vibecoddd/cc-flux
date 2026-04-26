@@ -94,36 +94,45 @@ go build -o cc-flux.exe .
 
 ### Step 2: Connect Claude Code
 
-Once the proxy is running (default: `http://localhost:8080`), you need to tell Claude Code to use it as the backend instead of the default Anthropic API.
+CC-Flux is an LLM Gateway for Claude Code. Point Claude Code at the local gateway:
 
-#### Option A: Using Environment Variables (Recommended)
-Set the `CLAUDE_BASE_URL` (or `ANTHROPIC_BASE_URL` depending on your version) to point to the proxy:
-
-*   **Linux / macOS**:
-    ```bash
-    export ANTHROPIC_BASE_URL=http://localhost:8080/v1
-    claude
-    ```
-*   **Windows (PowerShell)**:
-    ```powershell
-    $env:ANTHROPIC_BASE_URL="http://localhost:8080/v1"
-    claude
-    ```
-
-#### Option B: Using the `--api-url` flag
-If your version of the Claude CLI supports it, you can pass the URL directly:
 ```bash
-claude --api-url http://localhost:8080/v1
+export ANTHROPIC_BASE_URL=http://localhost:8080
+claude
 ```
 
-#### Option C: Using Unix Sockets (Advanced)
-If you configured `SOCKET_PATH` in the proxy (e.g., `/tmp/cc-flux.sock`), you can connect via curl-compatible tools or wrappers that support sockets, though environment variables are typically used for the CLI.
+Some Claude Code versions also recognize `CLAUDE_BASE_URL`; use `/status` inside Claude Code to verify which base URL is active.
+
+CC-Flux does not intercept encrypted Claude Code traffic through `HTTPS_PROXY`. A plain HTTPS proxy can only tunnel encrypted traffic and cannot translate Anthropic request bodies to other providers without local TLS inspection.
 
 ---
 
 ## 📖 Common Operations
 
-### 1. Switching Models
+### 1. Hot-Switching With CLI
+
+List profiles:
+
+```bash
+cc-flux profiles
+```
+
+Show the active runtime config:
+
+```bash
+cc-flux current
+```
+
+Switch to a profile:
+
+```bash
+cc-flux switch deepseek-reasoner
+```
+
+The switch applies to the next Claude Code model request. Active streaming responses continue with the provider they started with.
+
+### 2. Switching Models
+
 1.  Ensure the **Proxy** is running.
 2.  Open the **TUI Controller** (`cc-flux`).
 3.  Use the **Arrow Keys (Up/Down)** or **j/k** to navigate the list.
@@ -132,7 +141,8 @@ If you configured `SOCKET_PATH` in the proxy (e.g., `/tmp/cc-flux.sock`), you ca
     - Status will update to `Successfully switched to [Model Name]`.
 5.  Press **q** or **Ctrl+C** to exit the TUI (the Proxy will continue running in the background).
 
-### 2. Adding New Model Providers
+### 3. Adding New Model Providers
+
 1.  Open `tui/providers.json`.
 2.  Add a new JSON object to the array:
     ```json
@@ -147,7 +157,15 @@ If you configured `SOCKET_PATH` in the proxy (e.g., `/tmp/cc-flux.sock`), you ca
     ```
 3.  Restart the TUI to see the new entry.
 
-### 3. Tuning for Local Models (Ollama)
+CC-Flux stores only the active profile id in `~/.cc-flux/state.json` by default. Provider definitions and API keys remain in `providers.json` or your environment. Override paths with:
+
+```bash
+export CC_FLUX_PROVIDERS_PATH=/path/to/providers.json
+export CC_FLUX_STATE_PATH=/path/to/state.json
+```
+
+### 4. Tuning for Local Models (Ollama)
+
 - **Retry Mode**: If your local model often outputs invalid tool-call JSON, ensure `RETRY_ENABLED=true` is set in `proxy/.env`.
 - **System Prompts**: The proxy automatically injects formatting instructions for `ollama` providers to improve reliability.
 
