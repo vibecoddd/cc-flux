@@ -26,6 +26,9 @@ Usage: cc-flux <command> [options]
 Commands:
   start [opts]    Start the proxy server
   tui             Start the TUI controller
+  profiles        List configured provider profiles
+  current         Show active proxy configuration
+  switch <id>     Hot-switch the running proxy to a profile
   config          Show current configuration
   help            Show this help message
 
@@ -44,6 +47,7 @@ Examples:
 
 Environment Variables:
   PORT, TARGET_PROVIDER, TARGET_BASE_URL, TARGET_API_KEY, TARGET_MODEL
+  CC_FLUX_ADMIN_URL, CC_FLUX_PROVIDERS_PATH, CC_FLUX_STATE_PATH
 
 Quick Install:
   npm install -g cc-flux
@@ -93,6 +97,88 @@ function parseArgs(args) {
   }
   
   return { config, unknown };
+}
+
+function getAdminBaseUrl() {
+  const fileConfig = loadConfig();
+  const port = process.env.CC_FLUX_PORT || fileConfig.PORT || process.env.PORT || DEFAULT_PORT;
+  return process.env.CC_FLUX_ADMIN_URL || `http://localhost:${port}`;
+}
+
+async function adminRequest(pathname, options = {}) {
+  const url = getAdminBaseUrl() + pathname;
+  const response = await fetch(url, {
+    method: options.method || 'GET',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: options.body ? JSON.stringify(options.body) : undefined
+  });
+
+  const text = await response.text();
+  const body = text ? JSON.parse(text) : {};
+  if (!response.ok) {
+    const message = body.error && body.error.message ? body.error.message : response.statusText;
+    const error = new Error(message);
+    error.statusCode = response.status;
+    error.body = body;
+    throw error;
+  }
+  return body;
+}
+
+function printProfileTable(profiles) {
+  if (!profiles.length) {
+    console.log('No provider profiles found.');
+    return;
+  }
+
+  for (const profile of profiles) {
+    const keyStatus = profile.apiKeyConfigured ? 'key configured' : 'no key';
+    console.log(`${profile.id}\t${profile.name}\t${profile.provider}\t${profile.model}\t${keyStatus}`);
+  }
+}
+
+async function listProfiles() {
+  const body = await adminRequest('/admin/profiles');
+  printProfileTable(body.profiles || []);
+}
+
+async function showCurrent() {
+  const body = await adminRequest('/admin/current');
+  const cfg = body.config;
+  console.log(`Provider: ${cfg.provider}`);
+  console.log(`Model: ${cfg.model || '(not set)'}`);
+  console.log(`Base URL: ${cfg.baseUrl}`);
+  console.log(`Retry enabled: ${cfg.retryEnabled}`);
+  console.log(`Active profile: ${cfg.activeProviderId || '(runtime config)'}`);
+  console.log(`API key: ${cfg.apiKeyConfigured ? 'configured' : 'not set'}`);
+}
+
+async function switchProfile(id) {
+  if (!id) {
+    console.error('Usage: cc-flux switch <profile-id>');
+    process.exit(1);
+  }
+
+  const body = await adminRequest('/admin/switch', {
+    method: 'POST',
+    body: { id }
+  });
+
+  const cfg = body.config;
+  console.log(`Switched to ${cfg.activeProviderId || id}: ${cfg.provider}/${cfg.model}`);
+  if (!body.statePersisted) {
+    console.log(`Warning: active profile was not persisted: ${body.warning}`);
+  }
+}
+
+function runAsync(fn) {
+  fn().catch((error) => {
+    const prefix = error.statusCode ? `HTTP ${error.statusCode}` : 'Error';
+    console.error(`${prefix}: ${error.message}`);
+    process.exit(1);
+  });
 }
 
 async function startProxy(args) {
@@ -195,6 +281,18 @@ switch (command) {
   case 'tui':
   case 'ui':
     startTUI();
+    break;
+
+  case 'profiles':
+    runAsync(listProfiles);
+    break;
+
+  case 'current':
+    runAsync(showCurrent);
+    break;
+
+  case 'switch':
+    runAsync(() => switchProfile(args[1]));
     break;
     
   case 'config':
