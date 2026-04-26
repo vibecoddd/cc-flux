@@ -1,42 +1,45 @@
-const fastify = require('fastify')({ logger: true });
+const createFastify = require('fastify');
 const config = require('./config');
+const registerAdminRoutes = require('./admin');
 const messageHandler = require('./handlers/message');
 
-fastify.get('/', async (request, reply) => {
-  const cfg = config.get();
-  return { 
-    status: 'CC-Flux Proxy is running',
-    current_config: {
-      provider: cfg.targetProvider,
-      model: cfg.targetModel,
-      baseUrl: cfg.targetBaseUrl,
-      retryEnabled: cfg.retryEnabled,
-      socketPath: cfg.socketPath
-    }
-  };
-});
+function buildServer(options = {}) {
+  const fastify = createFastify({ logger: options.logger !== undefined ? options.logger : true });
 
-// Admin API: Update Configuration
-fastify.post('/config', async (request, reply) => {
-  const body = request.body;
-  
-  if (!body) return reply.code(400).send({ error: 'Missing body' });
-  
-  config.update({
-    targetProvider: body.provider,
-    targetBaseUrl: body.baseUrl,
-    targetApiKey: body.apiKey,
-    targetModel: body.model,
-    retryEnabled: body.retryEnabled
+  fastify.get('/', async () => {
+    const cfg = config.get();
+    return {
+      status: 'CC-Flux Proxy is running',
+      current_config: config.getPublic(),
+      port: cfg.port
+    };
   });
 
-  return { status: 'updated', config: config.get() };
-});
+  registerAdminRoutes(fastify);
 
-// The main route Claude Code uses
-fastify.post('/v1/messages', messageHandler);
+  fastify.post('/config', async (request, reply) => {
+    const body = request.body;
+    if (!body) return reply.code(400).send({ error: 'Missing body' });
+
+    config.update({
+      targetProvider: body.provider,
+      targetBaseUrl: body.baseUrl,
+      targetApiKey: body.apiKey,
+      targetModel: body.model,
+      retryEnabled: body.retryEnabled
+    });
+
+    return { status: 'updated', config: config.getPublic() };
+  });
+
+  fastify.post('/v1/messages', messageHandler);
+
+  return fastify;
+}
 
 const start = async () => {
+  const fastify = buildServer();
+
   try {
     const cfg = config.get();
     
@@ -59,4 +62,8 @@ const start = async () => {
   }
 };
 
-module.exports = { start };
+if (require.main === module) {
+  start();
+}
+
+module.exports = { buildServer, start };
