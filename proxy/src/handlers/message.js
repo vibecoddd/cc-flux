@@ -190,7 +190,12 @@ async function messageHandler(request, reply) {
     }
 
   } catch (err) {
-    request.log.error(err, 'Upstream request failed');
+    request.log.error({
+      err,
+      provider: cfg.targetProvider,
+      model: cfg.targetModel,
+      baseUrl: cfg.targetBaseUrl
+    }, 'Upstream request failed');
     const status = err.response ? err.response.status : 500;
     const data = err.response ? err.response.data : { error: { message: err.message } };
     
