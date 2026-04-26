@@ -70,20 +70,17 @@ var (
 
 // Provider represents a backend model provider
 type Provider struct {
-	ID       string `json:"id"`
-	Name     string `json:"name"`
-	Provider string `json:"provider"`
-	BaseURL  string `json:"baseUrl"`
-	APIKey   string `json:"apiKey"`
-	Model    string `json:"model"`
+	ID           string `json:"id"`
+	Name         string `json:"name"`
+	Provider     string `json:"provider"`
+	BaseURL      string `json:"baseUrl"`
+	APIKey       string `json:"apiKey"`
+	Model        string `json:"model"`
+	RetryEnabled bool   `json:"retryEnabled"`
 }
 
-// ConfigPayload is what we send to the proxy
-type ConfigPayload struct {
-	Provider string `json:"provider"`
-	BaseURL  string `json:"baseUrl"`
-	APIKey   string `json:"apiKey,omitempty"`
-	Model    string `json:"model,omitempty"`
+type SwitchPayload struct {
+	ID string `json:"id"`
 }
 
 type model struct {
@@ -172,11 +169,8 @@ type errMsg error
 
 func updateProxyConfig(p Provider) tea.Cmd {
 	return func() tea.Msg {
-		payload := ConfigPayload{
-			Provider: p.Provider,
-			BaseURL:  p.BaseURL,
-			APIKey:   p.APIKey,
-			Model:    p.Model,
+		payload := SwitchPayload{
+			ID: p.ID,
 		}
 		
 		jsonData, err := json.Marshal(payload)
@@ -184,14 +178,15 @@ func updateProxyConfig(p Provider) tea.Cmd {
 			return errMsg(err)
 		}
 
-		resp, err := http.Post(apiBaseUrl + "/config", "application/json", bytes.NewBuffer(jsonData))
+		resp, err := http.Post(apiBaseUrl + "/admin/switch", "application/json", bytes.NewBuffer(jsonData))
 		if err != nil {
 			return errMsg(err)
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != 200 {
-			return errMsg(fmt.Errorf("proxy returned status: %s", resp.Status))
+			body, _ := ioutil.ReadAll(resp.Body)
+			return errMsg(fmt.Errorf("proxy returned status: %s %s", resp.Status, strings.TrimSpace(string(body))))
 		}
 
 		return statusMsg(fmt.Sprintf("Successfully switched to %s", p.Name))
