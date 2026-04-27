@@ -83,11 +83,33 @@ type SwitchPayload struct {
 	ID string `json:"id"`
 }
 
+type CompressionStatus struct {
+	Enabled     bool `json:"enabled"`
+	MaxMessages int  `json:"maxMessages"`
+	KeepRecent  int  `json:"keepRecent"`
+}
+
+type RuntimeStatus struct {
+	Provider         string            `json:"provider"`
+	Model            string            `json:"model"`
+	ActiveProviderID string            `json:"activeProviderId"`
+	Compression      CompressionStatus `json:"compression"`
+}
+
+type CurrentResponse struct {
+	Config RuntimeStatus `json:"config"`
+}
+
+type CompressionPayload struct {
+	Enabled bool `json:"enabled"`
+}
+
 type model struct {
 	providers []Provider
 	cursor    int
 	status    string
 	err       error
+	runtime   RuntimeStatus
 }
 
 func initialModel() model {
@@ -110,7 +132,7 @@ func initialModel() model {
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return fetchCurrentStatus("")
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -131,9 +153,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			selected := m.providers[m.cursor]
 			m.status = fmt.Sprintf("Switching to %s...", selected.Name)
 			return m, updateProxyConfig(selected)
+		case "c":
+			m.status = "Toggling compression..."
+			return m, toggleCompression(m.runtime.Compression.Enabled)
 		}
 	case statusMsg:
 		m.status = string(msg)
+	case currentStatusMsg:
+		m.runtime = msg.Runtime
+		if msg.Status != "" {
+			m.status = msg.Status
+		} else {
+			m.status = "Ready. Select a model and press Enter."
+		}
 	case errMsg:
 		m.err = msg
 		m.status = "Error updating proxy."
@@ -155,10 +187,27 @@ func (m model) View() string {
 	}
 
 	s += "\n" + statusStyle.Render(m.status) + "\n"
+	if m.runtime.Provider != "" || m.runtime.Model != "" {
+		active := fmt.Sprintf("Active: %s/%s", m.runtime.Provider, m.runtime.Model)
+		if m.runtime.ActiveProviderID != "" {
+			active += fmt.Sprintf(" (%s)", m.runtime.ActiveProviderID)
+		}
+		s += statusStyle.Render(active) + "\n"
+		compressionState := "disabled"
+		if m.runtime.Compression.Enabled {
+			compressionState = "enabled"
+		}
+		s += statusStyle.Render(fmt.Sprintf(
+			"Compression: %s (max %d, keep %d)",
+			compressionState,
+			m.runtime.Compression.MaxMessages,
+			m.runtime.Compression.KeepRecent,
+		)) + "\n"
+	}
 	if m.err != nil {
 		s += lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.err.Error()) + "\n"
 	}
-	s += "\nPress q to quit.\n"
+	s += "\nPress c to toggle compression. Press q to quit.\n"
 
 	return appStyle.Render(s)
 }
@@ -166,6 +215,40 @@ func (m model) View() string {
 // Commands
 type statusMsg string
 type errMsg error
+type currentStatusMsg struct {
+	Runtime RuntimeStatus
+	Status  string
+}
+
+func getCurrentStatus() (RuntimeStatus, error) {
+	resp, err := http.Get(apiBaseUrl + "/admin/current")
+	if err != nil {
+		return RuntimeStatus{}, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		body, _ := ioutil.ReadAll(resp.Body)
+		return RuntimeStatus{}, fmt.Errorf("proxy returned status: %s %s", resp.Status, strings.TrimSpace(string(body)))
+	}
+
+	var current CurrentResponse
+	if err := json.NewDecoder(resp.Body).Decode(&current); err != nil {
+		return RuntimeStatus{}, err
+	}
+
+	return current.Config, nil
+}
+
+func fetchCurrentStatus(status string) tea.Cmd {
+	return func() tea.Msg {
+		runtime, err := getCurrentStatus()
+		if err != nil {
+			return errMsg(err)
+		}
+		return currentStatusMsg{Runtime: runtime, Status: status}
+	}
+}
 
 func updateProxyConfig(p Provider) tea.Cmd {
 	return func() tea.Msg {
@@ -189,7 +272,50 @@ func updateProxyConfig(p Provider) tea.Cmd {
 			return errMsg(fmt.Errorf("proxy returned status: %s %s", resp.Status, strings.TrimSpace(string(body))))
 		}
 
-		return statusMsg(fmt.Sprintf("Successfully switched to %s", p.Name))
+		runtime, err := getCurrentStatus()
+		if err != nil {
+			return errMsg(err)
+		}
+
+		return currentStatusMsg{
+			Runtime: runtime,
+			Status:  fmt.Sprintf("Successfully switched to %s", p.Name),
+		}
+	}
+}
+
+func toggleCompression(current bool) tea.Cmd {
+	return func() tea.Msg {
+		payload := CompressionPayload{Enabled: !current}
+		jsonData, err := json.Marshal(payload)
+		if err != nil {
+			return errMsg(err)
+		}
+
+		resp, err := http.Post(apiBaseUrl + "/admin/compression", "application/json", bytes.NewBuffer(jsonData))
+		if err != nil {
+			return errMsg(err)
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode != 200 {
+			body, _ := ioutil.ReadAll(resp.Body)
+			return errMsg(fmt.Errorf("proxy returned status: %s %s", resp.Status, strings.TrimSpace(string(body))))
+		}
+
+		runtime, err := getCurrentStatus()
+		if err != nil {
+			return errMsg(err)
+		}
+
+		state := "disabled"
+		if runtime.Compression.Enabled {
+			state = "enabled"
+		}
+		return currentStatusMsg{
+			Runtime: runtime,
+			Status:  fmt.Sprintf("Compression %s", state),
+		}
 	}
 }
 
