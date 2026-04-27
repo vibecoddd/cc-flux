@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	tea "github.com/charmbracelet/bubbletea"
 )
 
 func TestUpdateProxyConfigSwitchesByProfileID(t *testing.T) {
@@ -95,5 +97,69 @@ func TestToggleCompressionPostsOppositeStateAndRefreshesStatus(t *testing.T) {
 	}
 	if !status.Runtime.Compression.Enabled {
 		t.Fatalf("expected refreshed compression status, got %#v", status.Runtime.Compression)
+	}
+}
+
+func TestRefreshKeyFetchesCurrentStatus(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/admin/current" {
+			t.Fatalf("expected /admin/current path, got %q", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"config":{"provider":"openai","model":"gpt-4o","activeProviderId":"openai-gpt4o","compression":{"enabled":false,"maxMessages":40,"keepRecent":16}}}`))
+	}))
+	defer server.Close()
+
+	previousURL := apiBaseUrl
+	apiBaseUrl = server.URL
+	defer func() {
+		apiBaseUrl = previousURL
+	}()
+
+	m := initialModel()
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'r'}})
+	model, ok := updated.(model)
+	if !ok {
+		t.Fatalf("expected model, got %T", updated)
+	}
+	if model.status != "Refreshing status..." {
+		t.Fatalf("expected refresh status, got %q", model.status)
+	}
+
+	msg := cmd()
+	status, ok := msg.(currentStatusMsg)
+	if !ok {
+		t.Fatalf("expected currentStatusMsg, got %T: %v", msg, msg)
+	}
+	if status.Status != "Status refreshed" {
+		t.Fatalf("expected refresh confirmation, got %q", status.Status)
+	}
+	if status.Runtime.ActiveProviderID != "openai-gpt4o" {
+		t.Fatalf("expected refreshed active provider, got %#v", status.Runtime)
+	}
+}
+
+func TestAdminRequestsUseConfiguredToken(t *testing.T) {
+	t.Setenv("CC_FLUX_ADMIN_TOKEN", "secret")
+
+	var authorization string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		authorization = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"config":{"provider":"openai","model":"gpt-4o","activeProviderId":"openai-gpt4o","compression":{"enabled":false,"maxMessages":40,"keepRecent":16}}}`))
+	}))
+	defer server.Close()
+
+	previousURL := apiBaseUrl
+	apiBaseUrl = server.URL
+	defer func() {
+		apiBaseUrl = previousURL
+	}()
+
+	if _, err := getCurrentStatus(); err != nil {
+		t.Fatalf("get current status: %v", err)
+	}
+	if authorization != "Bearer secret" {
+		t.Fatalf("expected Authorization bearer token, got %q", authorization)
 	}
 }

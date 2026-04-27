@@ -55,16 +55,15 @@ var apiBaseUrl = "http://localhost:" + getProxyPort()
 
 // Styles
 var (
-
-	appStyle = lipgloss.NewStyle().Margin(1, 2)
+	appStyle   = lipgloss.NewStyle().Margin(1, 2)
 	titleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#FFFDF5")).
 			Background(lipgloss.Color("#25A065")).
 			Padding(0, 1)
-	itemStyle = lipgloss.NewStyle().PaddingLeft(2)
+	itemStyle         = lipgloss.NewStyle().PaddingLeft(2)
 	selectedItemStyle = lipgloss.NewStyle().
-			PaddingLeft(2).
-			Foreground(lipgloss.Color("170"))
+				PaddingLeft(2).
+				Foreground(lipgloss.Color("170"))
 	statusStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 )
 
@@ -156,6 +155,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "c":
 			m.status = "Toggling compression..."
 			return m, toggleCompression(m.runtime.Compression.Enabled)
+		case "r":
+			m.status = "Refreshing status..."
+			return m, fetchCurrentStatus("Status refreshed")
 		}
 	case statusMsg:
 		m.status = string(msg)
@@ -207,7 +209,7 @@ func (m model) View() string {
 	if m.err != nil {
 		s += lipgloss.NewStyle().Foreground(lipgloss.Color("9")).Render(m.err.Error()) + "\n"
 	}
-	s += "\nPress c to toggle compression. Press q to quit.\n"
+	s += "\nPress Enter to switch. Press r to refresh, c to toggle compression, q to quit.\n"
 
 	return appStyle.Render(s)
 }
@@ -221,7 +223,7 @@ type currentStatusMsg struct {
 }
 
 func getCurrentStatus() (RuntimeStatus, error) {
-	resp, err := http.Get(apiBaseUrl + "/admin/current")
+	resp, err := adminRequest(http.MethodGet, "/admin/current", nil)
 	if err != nil {
 		return RuntimeStatus{}, err
 	}
@@ -240,6 +242,20 @@ func getCurrentStatus() (RuntimeStatus, error) {
 	return current.Config, nil
 }
 
+func adminRequest(method string, pathname string, body []byte) (*http.Response, error) {
+	req, err := http.NewRequest(method, apiBaseUrl+pathname, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	if token := os.Getenv("CC_FLUX_ADMIN_TOKEN"); token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
+	}
+	return http.DefaultClient.Do(req)
+}
+
 func fetchCurrentStatus(status string) tea.Cmd {
 	return func() tea.Msg {
 		runtime, err := getCurrentStatus()
@@ -255,13 +271,13 @@ func updateProxyConfig(p Provider) tea.Cmd {
 		payload := SwitchPayload{
 			ID: p.ID,
 		}
-		
+
 		jsonData, err := json.Marshal(payload)
 		if err != nil {
 			return errMsg(err)
 		}
 
-		resp, err := http.Post(apiBaseUrl + "/admin/switch", "application/json", bytes.NewBuffer(jsonData))
+		resp, err := adminRequest(http.MethodPost, "/admin/switch", jsonData)
 		if err != nil {
 			return errMsg(err)
 		}
@@ -292,7 +308,7 @@ func toggleCompression(current bool) tea.Cmd {
 			return errMsg(err)
 		}
 
-		resp, err := http.Post(apiBaseUrl + "/admin/compression", "application/json", bytes.NewBuffer(jsonData))
+		resp, err := adminRequest(http.MethodPost, "/admin/compression", jsonData)
 		if err != nil {
 			return errMsg(err)
 		}
