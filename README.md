@@ -353,6 +353,12 @@ GOCACHE=/tmp/go-build-cache go test -count=1 ./...
 GOCACHE=/tmp/go-build-cache go build -o cc-flux .
 ```
 
+Run the same local CI sequence from the repository root:
+
+```bash
+./scripts/ci.sh
+```
+
 Full local smoke example:
 
 ```bash
