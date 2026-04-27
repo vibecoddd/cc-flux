@@ -4,10 +4,12 @@ class StreamAdapter {
   constructor() {
     this.messageId = 'msg_' + uuidv4();
     this.currentBlockIndex = 0;
-    this.currentBlockType = null; // 'text' | 'tool_use'
+    this.currentBlockType = null; // 'text' | 'tool_use' | 'reasoning'
     this.hasSentMessageStart = false;
     this.toolCallId = null;
     this.toolName = '';
+    this.inReasoning = false;
+    this.hasStopped = false;
   }
 
   processChunk(chunkStr) {
@@ -16,7 +18,8 @@ class StreamAdapter {
 
     for (const line of lines) {
       if (line === 'data: [DONE]') {
-        events.push(this.createEvent('message_stop', { type: 'message_stop' }));
+        this.closeReasoningIfNeeded(events);
+        this.emitStop(events);
         return events;
       }
       if (!line.startsWith('data: ')) continue;
@@ -53,30 +56,33 @@ class StreamAdapter {
 
       // 1.5 Handle DeepSeek Reasoning (Thinking)
       if (delta.reasoning_content) {
-        if (this.currentBlockType !== 'text') {
-           if (this.currentBlockType) {
-             events.push(this.createEvent('content_block_stop', {
-                type: 'content_block_stop',
-                index: this.currentBlockIndex
-             }));
-             this.currentBlockIndex++;
-           }
-           
-           this.currentBlockType = 'text';
-           events.push(this.createEvent('content_block_start', {
-             type: 'content_block_start',
-             index: this.currentBlockIndex,
-             content_block: { type: 'text', text: '' }
-           }));
+        if (!this.inReasoning) {
+          if (this.currentBlockType && this.currentBlockType !== 'text') {
+            events.push(this.createEvent('content_block_stop', {
+               type: 'content_block_stop',
+               index: this.currentBlockIndex
+            }));
+            this.currentBlockIndex++;
+            this.currentBlockType = null;
+          }
+          
+          if (this.currentBlockType !== 'text') {
+            this.currentBlockType = 'text';
+            events.push(this.createEvent('content_block_start', {
+              type: 'content_block_start',
+              index: this.currentBlockIndex,
+              content_block: { type: 'text', text: '' }
+            }));
+          }
+
+          events.push(this.createEvent('content_block_delta', {
+            type: 'content_block_delta',
+            index: this.currentBlockIndex,
+            delta: { type: 'text_delta', text: '<thinking>\n' }
+          }));
+          this.inReasoning = true;
         }
 
-        // Wrap reasoning in a visual indicator, e.g., blockquote or tags
-        // Note: Since this is a delta, we can't easily wrap the whole block in tags once.
-        // But we can prepend a tag on the FIRST reasoning delta? 
-        // For simplicity in streaming, we just pass it through. 
-        // Or we can prefix it with "> " to make it a quote.
-        // Let's explicitly format it as <thinking> block content.
-        
         events.push(this.createEvent('content_block_delta', {
           type: 'content_block_delta',
           index: this.currentBlockIndex,
@@ -86,10 +92,9 @@ class StreamAdapter {
 
       // 2. Handle Text Content
       if (delta.content) {
+        this.closeReasoningIfNeeded(events);
+
         if (this.currentBlockType !== 'text') {
-          // If we were in a tool block, close it? OpenAI doesn't explicitly close until finish or switch?
-          // For now, assume if we switch types, we start a new block.
-          // In practice, OpenAI usually sends all text then all tools.
           if (this.currentBlockType) {
             events.push(this.createEvent('content_block_stop', {
                type: 'content_block_stop',
@@ -115,6 +120,8 @@ class StreamAdapter {
 
       // 3. Handle Tool Calls
       if (delta.tool_calls) {
+        this.closeReasoningIfNeeded(events);
+
         for (const tc of delta.tool_calls) {
           // OpenAI sends: index, id (only on first chunk), function.name (first), function.arguments (stream)
           
@@ -161,6 +168,8 @@ class StreamAdapter {
 
       // 4. Handle Finish
       if (finish_reason) {
+        this.closeReasoningIfNeeded(events);
+
         if (this.currentBlockType) {
            events.push(this.createEvent('content_block_stop', {
              type: 'content_block_stop',
@@ -175,11 +184,29 @@ class StreamAdapter {
           usage: { output_tokens: 0 }
         }));
         
-        events.push(this.createEvent('message_stop', { type: 'message_stop' }));
+        this.emitStop(events);
       }
     }
 
     return events;
+  }
+
+  closeReasoningIfNeeded(events) {
+    if (!this.inReasoning) return;
+
+    events.push(this.createEvent('content_block_delta', {
+      type: 'content_block_delta',
+      index: this.currentBlockIndex,
+      delta: { type: 'text_delta', text: '\n</thinking>\n\n' }
+    }));
+    this.inReasoning = false;
+  }
+
+  emitStop(events) {
+    if (this.hasStopped) return;
+
+    events.push(this.createEvent('message_stop', { type: 'message_stop' }));
+    this.hasStopped = true;
   }
 
   createEvent(event, data) {
