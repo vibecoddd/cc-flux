@@ -34,7 +34,13 @@ function installAxiosMock(calls) {
 }
 
 function loadServer(env, calls) {
-  for (const key of ['CC_FLUX_PROVIDERS_PATH', 'CC_FLUX_STATE_PATH']) {
+  for (const key of [
+    'CC_FLUX_PROVIDERS_PATH',
+    'CC_FLUX_STATE_PATH',
+    'CC_FLUX_COMPRESSION_ENABLED',
+    'CC_FLUX_COMPRESSION_MAX_MESSAGES',
+    'CC_FLUX_COMPRESSION_KEEP_RECENT'
+  ]) {
     delete process.env[key];
   }
   Object.assign(process.env, env);
@@ -105,4 +111,54 @@ test('/v1/messages uses active config selected before request starts', async () 
   assert.equal(secondResponse.statusCode, 200);
   assert.equal(calls[1].url, 'https://second.example.com/v1/chat/completions');
   assert.equal(calls[1].data.model, 'second-model');
+});
+
+test('/v1/messages compresses old converted messages when compression is enabled', async () => {
+  const dir = tempDir();
+  const providersPath = path.join(dir, 'providers.json');
+  const calls = [];
+  writeJson(providersPath, [
+    {
+      id: 'compressed',
+      name: 'Compressed',
+      provider: 'openai',
+      baseUrl: 'https://compressed.example.com/v1',
+      apiKey: 'sk-compressed',
+      model: 'compressed-model'
+    }
+  ]);
+
+  const app = loadServer({
+    CC_FLUX_PROVIDERS_PATH: providersPath,
+    CC_FLUX_STATE_PATH: path.join(dir, 'state.json'),
+    CC_FLUX_COMPRESSION_ENABLED: 'true',
+    CC_FLUX_COMPRESSION_MAX_MESSAGES: '5',
+    CC_FLUX_COMPRESSION_KEEP_RECENT: '2'
+  }, calls);
+
+  await app.inject({ method: 'POST', url: '/admin/switch', payload: { id: 'compressed' } });
+  const response = await app.inject({
+    method: 'POST',
+    url: '/v1/messages',
+    payload: {
+      model: 'claude-sonnet',
+      max_tokens: 64,
+      stream: true,
+      system: 'system',
+      messages: [
+        { role: 'user', content: 'old user 1' },
+        { role: 'assistant', content: 'old assistant 1' },
+        { role: 'user', content: 'old user 2' },
+        { role: 'assistant', content: 'old assistant 2' },
+        { role: 'user', content: 'recent user' },
+        { role: 'assistant', content: 'recent assistant' }
+      ]
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(calls[0].data.messages.length, 4);
+  assert.equal(calls[0].data.messages[0].role, 'system');
+  assert.equal(calls[0].data.messages[1].content.startsWith('[CC-Flux compressed conversation history]'), true);
+  assert.equal(calls[0].data.messages.at(-1).content, 'recent assistant');
 });

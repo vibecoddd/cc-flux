@@ -8,6 +8,10 @@
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
+const {
+  formatCompressionStatus,
+  parseCompressionCommand
+} = require('../src/cli/compression-command');
 
 const CONFIG_FILE = '.cc-flux.env';
 const DEFAULT_PORT = 8080;
@@ -29,6 +33,7 @@ Commands:
   profiles        List configured provider profiles
   current         Show active proxy configuration
   switch <id>     Hot-switch the running proxy to a profile
+  compression     Show or update compression settings
   config          Show current configuration
   help            Show this help message
 
@@ -44,6 +49,8 @@ Examples:
   cc-flux start -m deepseek-reasoner -k sk-xxx -u https://api.deepseek.com
   cc-flux tui
   cc-flux config
+  cc-flux compression on
+  cc-flux compression set --max-messages 32 --keep-recent 12
 
 Environment Variables:
   PORT, TARGET_PROVIDER, TARGET_BASE_URL, TARGET_API_KEY, TARGET_MODEL
@@ -173,6 +180,15 @@ async function switchProfile(id) {
   }
 }
 
+async function manageCompression(args) {
+  const request = parseCompressionCommand(['compression', ...args]);
+  const body = await adminRequest(request.pathname, {
+    method: request.method,
+    body: request.body
+  });
+  console.log(formatCompressionStatus(body.compression));
+}
+
 function runAsync(fn) {
   fn().catch((error) => {
     const prefix = error.statusCode ? `HTTP ${error.statusCode}` : 'Error';
@@ -293,6 +309,10 @@ switch (command) {
 
   case 'switch':
     runAsync(() => switchProfile(args[1]));
+    break;
+
+  case 'compression':
+    runAsync(() => manageCompression(args.slice(1)));
     break;
     
   case 'config':

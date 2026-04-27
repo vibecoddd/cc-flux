@@ -1,6 +1,7 @@
 const axios = require('axios');
 const config = require('../config');
 const { convertRequest } = require('../adapter/request');
+const { compressMessages } = require('../adapter/compression');
 const StreamAdapter = require('../adapter/response');
 
 // Helper: Check if tool calls have valid JSON arguments
@@ -173,6 +174,11 @@ async function messageHandler(request, reply) {
   try {
     targetBody = convertRequest(incomingBody, cfg.targetProvider);
     if (cfg.targetModel) targetBody.model = cfg.targetModel;
+    const compressionResult = compressMessages(targetBody.messages, cfg.compression);
+    targetBody.messages = compressionResult.messages;
+    if (compressionResult.meta.applied || !['disabled', 'below_threshold'].includes(compressionResult.meta.reason)) {
+      request.log.info({ compression: compressionResult.meta }, 'Compression evaluated');
+    }
   } catch (err) {
     request.log.error(err, 'Request conversion failed');
     return reply.code(400).send({ error: { message: 'Failed to convert request: ' + err.message } });
