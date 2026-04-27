@@ -1,6 +1,7 @@
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { normalizeCompressionConfig } = require('../adapter/compression');
 
 function homePath(...parts) {
   return path.join(os.homedir(), ...parts);
@@ -82,6 +83,10 @@ function validateProfile(profile) {
 }
 
 function profileToRuntime(profile, baseState) {
+  const profileCompression = profile.compression
+    ? normalizeCompressionConfig({ ...baseState.compression, ...profile.compression })
+    : baseState.compression;
+
   return {
     ...baseState,
     targetProvider: profile.provider,
@@ -89,7 +94,8 @@ function profileToRuntime(profile, baseState) {
     targetApiKey: profile.apiKey || '',
     targetModel: profile.model,
     retryEnabled: profile.retryEnabled !== undefined ? Boolean(profile.retryEnabled) : baseState.retryEnabled,
-    activeProviderId: profile.id
+    activeProviderId: profile.id,
+    compression: profileCompression
   };
 }
 
@@ -101,6 +107,7 @@ function redactRuntimeConfig(config) {
     retryEnabled: config.retryEnabled,
     socketPath: config.socketPath,
     activeProviderId: config.activeProviderId || null,
+    compression: { ...config.compression },
     apiKeyConfigured: Boolean(config.targetApiKey)
   };
 }
@@ -113,6 +120,7 @@ function redactProfile(profile) {
     baseUrl: profile.baseUrl,
     model: profile.model,
     retryEnabled: Boolean(profile.retryEnabled),
+    compression: profile.compression ? normalizeCompressionConfig(profile.compression) : null,
     apiKeyConfigured: Boolean(profile.apiKey)
   };
 }

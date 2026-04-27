@@ -14,7 +14,13 @@ function writeJson(filePath, value) {
 }
 
 function loadServer(env) {
-  for (const key of ['CC_FLUX_PROVIDERS_PATH', 'CC_FLUX_STATE_PATH']) {
+  for (const key of [
+    'CC_FLUX_PROVIDERS_PATH',
+    'CC_FLUX_STATE_PATH',
+    'CC_FLUX_COMPRESSION_ENABLED',
+    'CC_FLUX_COMPRESSION_MAX_MESSAGES',
+    'CC_FLUX_COMPRESSION_KEEP_RECENT'
+  ]) {
     delete process.env[key];
   }
   Object.assign(process.env, env);
@@ -125,4 +131,59 @@ test('legacy POST /config still updates runtime config', async () => {
   assert.equal(response.json().config.model, 'example-model');
   assert.equal(response.json().config.apiKeyConfigured, true);
   assert.equal('targetApiKey' in response.json().config, false);
+});
+
+test('GET /admin/compression returns current compression settings', async () => {
+  const dir = tempDir();
+  const app = loadServer({
+    CC_FLUX_PROVIDERS_PATH: path.join(dir, 'providers.json'),
+    CC_FLUX_STATE_PATH: path.join(dir, 'state.json'),
+    CC_FLUX_COMPRESSION_ENABLED: 'true',
+    CC_FLUX_COMPRESSION_MAX_MESSAGES: '22',
+    CC_FLUX_COMPRESSION_KEEP_RECENT: '9'
+  });
+
+  const response = await app.inject({ method: 'GET', url: '/admin/compression' });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json().compression, {
+    enabled: true,
+    maxMessages: 22,
+    keepRecent: 9
+  });
+});
+
+test('POST /admin/compression updates current compression settings', async () => {
+  const dir = tempDir();
+  const app = loadServer({
+    CC_FLUX_PROVIDERS_PATH: path.join(dir, 'providers.json'),
+    CC_FLUX_STATE_PATH: path.join(dir, 'state.json')
+  });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/admin/compression',
+    payload: { enabled: true, maxMessages: 20, keepRecent: 8 }
+  });
+  assert.equal(response.statusCode, 200);
+  assert.deepEqual(response.json().compression, {
+    enabled: true,
+    maxMessages: 20,
+    keepRecent: 8
+  });
+});
+
+test('POST /admin/compression rejects invalid compression settings', async () => {
+  const dir = tempDir();
+  const app = loadServer({
+    CC_FLUX_PROVIDERS_PATH: path.join(dir, 'providers.json'),
+    CC_FLUX_STATE_PATH: path.join(dir, 'state.json')
+  });
+
+  const response = await app.inject({
+    method: 'POST',
+    url: '/admin/compression',
+    payload: { maxMessages: 10, keepRecent: 99 }
+  });
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().error.code, 'invalid_compression_config');
 });

@@ -21,7 +21,10 @@ function loadFreshConfig(env) {
     'TARGET_BASE_URL',
     'TARGET_API_KEY',
     'TARGET_MODEL',
-    'RETRY_ENABLED'
+    'RETRY_ENABLED',
+    'CC_FLUX_COMPRESSION_ENABLED',
+    'CC_FLUX_COMPRESSION_MAX_MESSAGES',
+    'CC_FLUX_COMPRESSION_KEEP_RECENT'
   ]) {
     delete process.env[key];
   }
@@ -66,7 +69,12 @@ test('restores active profile from state file', () => {
     retryEnabled: true,
     maxRetries: 2,
     socketPath: '',
-    activeProviderId: 'deepseek-reasoner'
+    activeProviderId: 'deepseek-reasoner',
+    compression: {
+      enabled: false,
+      maxMessages: 40,
+      keepRecent: 16
+    }
   });
 });
 
@@ -180,4 +188,80 @@ test('public config and profile list redact API keys', () => {
   assert.equal('targetApiKey' in config.getPublic(), false);
   assert.equal(config.listProfiles()[0].apiKeyConfigured, true);
   assert.equal('apiKey' in config.listProfiles()[0], false);
+});
+
+test('loads compression settings from env', () => {
+  const dir = tempDir();
+  const config = loadFreshConfig({
+    CC_FLUX_PROVIDERS_PATH: path.join(dir, 'providers.json'),
+    CC_FLUX_STATE_PATH: path.join(dir, 'state.json'),
+    CC_FLUX_COMPRESSION_ENABLED: 'true',
+    CC_FLUX_COMPRESSION_MAX_MESSAGES: '12',
+    CC_FLUX_COMPRESSION_KEEP_RECENT: '4'
+  });
+
+  assert.deepEqual(config.get().compression, {
+    enabled: true,
+    maxMessages: 12,
+    keepRecent: 4
+  });
+  assert.deepEqual(config.getPublic().compression, {
+    enabled: true,
+    maxMessages: 12,
+    keepRecent: 4
+  });
+});
+
+test('profile compression overrides env compression settings', () => {
+  const dir = tempDir();
+  const providersPath = path.join(dir, 'providers.json');
+  const statePath = path.join(dir, 'state.json');
+  writeJson(providersPath, [
+    {
+      id: 'compressed',
+      name: 'Compressed',
+      provider: 'openai',
+      baseUrl: 'https://api.example.com/v1',
+      model: 'compressed-model',
+      compression: {
+        enabled: true,
+        maxMessages: 18,
+        keepRecent: 6
+      }
+    }
+  ]);
+  writeJson(statePath, { activeProviderId: 'compressed' });
+
+  const config = loadFreshConfig({
+    CC_FLUX_PROVIDERS_PATH: providersPath,
+    CC_FLUX_STATE_PATH: statePath,
+    CC_FLUX_COMPRESSION_ENABLED: 'false',
+    CC_FLUX_COMPRESSION_MAX_MESSAGES: '40',
+    CC_FLUX_COMPRESSION_KEEP_RECENT: '16'
+  });
+
+  assert.deepEqual(config.get().compression, {
+    enabled: true,
+    maxMessages: 18,
+    keepRecent: 6
+  });
+});
+
+test('updateCompression validates and applies runtime compression settings', () => {
+  const dir = tempDir();
+  const config = loadFreshConfig({
+    CC_FLUX_PROVIDERS_PATH: path.join(dir, 'providers.json'),
+    CC_FLUX_STATE_PATH: path.join(dir, 'state.json')
+  });
+
+  const updated = config.updateCompression({ enabled: true, maxMessages: 20, keepRecent: 8 });
+  assert.deepEqual(updated, {
+    enabled: true,
+    maxMessages: 20,
+    keepRecent: 8
+  });
+  assert.throws(
+    () => config.updateCompression({ maxMessages: 4, keepRecent: 8 }),
+    (error) => error.statusCode === 400 && error.code === 'invalid_compression_config'
+  );
 });

@@ -25,6 +25,22 @@ function registerAdminRoutes(fastify) {
     };
   });
 
+  fastify.get('/admin/compression', async () => {
+    return {
+      compression: config.getCompression()
+    };
+  });
+
+  fastify.post('/admin/compression', async (request, reply) => {
+    try {
+      return {
+        compression: config.updateCompression(request.body || {})
+      };
+    } catch (error) {
+      return sendConfigError(reply, error);
+    }
+  });
+
   fastify.post('/admin/switch', async (request, reply) => {
     const body = request.body || {};
     if (!body.id || typeof body.id !== 'string') {

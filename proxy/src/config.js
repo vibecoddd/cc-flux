@@ -1,6 +1,10 @@
 require('dotenv').config();
 
 const store = require('./config/profile-store');
+const {
+  normalizeCompressionConfig,
+  validateCompressionConfig
+} = require('./adapter/compression');
 
 function envBool(value) {
   return value === 'true';
@@ -16,7 +20,12 @@ function baseStateFromEnv() {
     retryEnabled: envBool(process.env.RETRY_ENABLED),
     maxRetries: 2,
     socketPath: process.env.SOCKET_PATH || '',
-    activeProviderId: null
+    activeProviderId: null,
+    compression: normalizeCompressionConfig({
+      enabled: process.env.CC_FLUX_COMPRESSION_ENABLED,
+      maxMessages: process.env.CC_FLUX_COMPRESSION_MAX_MESSAGES,
+      keepRecent: process.env.CC_FLUX_COMPRESSION_KEEP_RECENT
+    })
   };
 }
 
@@ -61,6 +70,10 @@ function getPublic() {
   return store.redactRuntimeConfig(runtimeState);
 }
 
+function getCompression() {
+  return { ...runtimeState.compression };
+}
+
 function getMeta() {
   return {
     providersPath,
@@ -94,6 +107,19 @@ function switchProfile(id) {
   };
 }
 
+function updateCompression(updates) {
+  const validation = validateCompressionConfig({
+    ...runtimeState.compression,
+    ...updates
+  });
+  if (!validation.valid) {
+    throw store.createConfigError(400, 'invalid_compression_config', validation.message);
+  }
+
+  runtimeState.compression = validation.config;
+  return getCompression();
+}
+
 function update(updates) {
   if (updates.targetProvider) runtimeState.targetProvider = updates.targetProvider;
   if (updates.targetBaseUrl) runtimeState.targetBaseUrl = updates.targetBaseUrl;
@@ -101,6 +127,7 @@ function update(updates) {
   if (updates.targetModel) runtimeState.targetModel = updates.targetModel;
   if (updates.retryEnabled !== undefined) runtimeState.retryEnabled = Boolean(updates.retryEnabled);
   if (updates.socketPath !== undefined) runtimeState.socketPath = updates.socketPath;
+  if (updates.compression !== undefined) updateCompression(updates.compression);
   runtimeState.activeProviderId = null;
   console.log('[Config] Updated:', getPublic());
   return get();
@@ -110,10 +137,12 @@ applyInitialState();
 
 module.exports = {
   get,
+  getCompression,
   getMeta,
   getPublic,
   listProfiles,
   switchProfile,
   update,
+  updateCompression,
   _reloadForTests: applyInitialState
 };
