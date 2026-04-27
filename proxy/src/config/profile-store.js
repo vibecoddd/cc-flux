@@ -7,6 +7,11 @@ function homePath(...parts) {
   return path.join(os.homedir(), ...parts);
 }
 
+function configHomePath(...parts) {
+  const base = process.env.CC_FLUX_HOME || homePath('.cc-flux');
+  return path.join(base, ...parts);
+}
+
 function firstExisting(paths) {
   return paths.find((candidate) => candidate && fs.existsSync(candidate)) || '';
 }
@@ -20,12 +25,12 @@ function resolveProvidersPath(cwd = process.cwd()) {
     path.resolve(cwd, 'tui', 'providers.json'),
     path.resolve(cwd, '..', 'tui', 'providers.json'),
     path.resolve(cwd, 'providers.json'),
-    homePath('.cc-flux', 'providers.json')
+    configHomePath('providers.json')
   ]);
 }
 
 function resolveStatePath() {
-  return process.env.CC_FLUX_STATE_PATH || homePath('.cc-flux', 'state.json');
+  return process.env.CC_FLUX_STATE_PATH || configHomePath('state.json');
 }
 
 function readJson(filePath, fallback) {

@@ -12,6 +12,12 @@ const {
   formatCompressionStatus,
   parseCompressionCommand
 } = require('../src/cli/compression-command');
+const {
+  buildDoctorReport,
+  formatDoctorReport,
+  formatInitResult,
+  initializeConfig
+} = require('../src/cli/setup-command');
 
 const CONFIG_FILE = '.cc-flux.env';
 const DEFAULT_PORT = 8080;
@@ -29,9 +35,13 @@ Usage: cc-flux <command> [options]
 
 Commands:
   start [opts]    Start the proxy server
+  init            Create default ~/.cc-flux provider and state files
+  doctor          Check local config files and admin API reachability
   tui             Start the TUI controller
   profiles        List configured provider profiles
   current         Show active proxy configuration
+  health          Show proxy health
+  metrics         Show proxy metrics counters
   switch <id>     Hot-switch the running proxy to a profile
   compression     Show or update compression settings
   config          Show current configuration
@@ -54,7 +64,8 @@ Examples:
 
 Environment Variables:
   PORT, TARGET_PROVIDER, TARGET_BASE_URL, TARGET_API_KEY, TARGET_MODEL
-  CC_FLUX_ADMIN_URL, CC_FLUX_PROVIDERS_PATH, CC_FLUX_STATE_PATH
+  HOST, CC_FLUX_ADMIN_TOKEN, CC_FLUX_ADMIN_URL, CC_FLUX_HOME
+  CC_FLUX_PROVIDERS_PATH, CC_FLUX_STATE_PATH
 
 Quick Install:
   npm install -g cc-flux
@@ -114,11 +125,16 @@ function getAdminBaseUrl() {
 
 async function adminRequest(pathname, options = {}) {
   const url = getAdminBaseUrl() + pathname;
+  const headers = {
+    'Content-Type': 'application/json'
+  };
+  if (process.env.CC_FLUX_ADMIN_TOKEN) {
+    headers.Authorization = `Bearer ${process.env.CC_FLUX_ADMIN_TOKEN}`;
+  }
+
   const response = await fetch(url, {
     method: options.method || 'GET',
-    headers: {
-      'Content-Type': 'application/json'
-    },
+    headers,
     body: options.body ? JSON.stringify(options.body) : undefined
   });
 
@@ -162,6 +178,20 @@ async function showCurrent() {
   console.log(`API key: ${cfg.apiKeyConfigured ? 'configured' : 'not set'}`);
 }
 
+async function showHealth() {
+  const body = await adminRequest('/admin/health');
+  console.log(`Status: ${body.status}`);
+  console.log(`Profiles: ${body.profileCount}`);
+  console.log(`Provider: ${body.config.provider}`);
+  console.log(`Model: ${body.config.model || '(not set)'}`);
+  console.log(`API key: ${body.config.apiKeyConfigured ? 'configured' : 'not set'}`);
+}
+
+async function showMetrics() {
+  const body = await adminRequest('/admin/metrics');
+  console.log(JSON.stringify(body.metrics, null, 2));
+}
+
 async function switchProfile(id) {
   if (!id) {
     console.error('Usage: cc-flux switch <profile-id>');
@@ -187,6 +217,27 @@ async function manageCompression(args) {
     body: request.body
   });
   console.log(formatCompressionStatus(body.compression));
+}
+
+async function runDoctor() {
+  const report = buildDoctorReport();
+  console.log(formatDoctorReport(report));
+
+  try {
+    const health = await adminRequest('/admin/health');
+    console.log(`Admin API: reachable (${health.status})`);
+  } catch (error) {
+    console.log(`Admin API: not reachable (${error.message})`);
+  }
+
+  if (!report.ok) {
+    process.exitCode = 1;
+  }
+}
+
+function runInit() {
+  const result = initializeConfig();
+  console.log(formatInitResult(result));
 }
 
 function runAsync(fn) {
@@ -293,6 +344,14 @@ switch (command) {
   case 'run':
     startProxy(args.slice(1));
     break;
+
+  case 'init':
+    runInit();
+    break;
+
+  case 'doctor':
+    runAsync(runDoctor);
+    break;
     
   case 'tui':
   case 'ui':
@@ -305,6 +364,14 @@ switch (command) {
 
   case 'current':
     runAsync(showCurrent);
+    break;
+
+  case 'health':
+    runAsync(showHealth);
+    break;
+
+  case 'metrics':
+    runAsync(showMetrics);
     break;
 
   case 'switch':
