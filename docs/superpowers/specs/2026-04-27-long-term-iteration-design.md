@@ -1,7 +1,7 @@
 # Long-Term Iteration Design
 
 Date: 2026-04-27
-Status: Approved for implementation
+Status: Implemented
 
 ## Context
 
@@ -109,4 +109,3 @@ Metrics are process-local and reset on restart. They do not include prompt text,
 - Existing proxy tests continue to pass.
 - Go tests for TUI refresh behavior.
 - Final verification runs proxy tests, TUI tests, TUI build, and selected CLI smoke.
-

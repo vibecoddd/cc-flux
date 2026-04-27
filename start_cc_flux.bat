@@ -4,7 +4,7 @@ REM CC-Flux Startup Script for Windows
 echo 🔄 Starting CC-Flux...
 
 REM Check if dependencies are installed
-if not exist "node_modules" (
+if not exist "proxy\node_modules" (
     echo 📦 Installing dependencies...
     cd proxy
     call npm install
@@ -18,7 +18,9 @@ if not exist "proxy\.env" (
 )
 
 REM Start the proxy
-echo 🚀 Starting proxy on port 8080...
+if "%PORT%"=="" set PORT=8080
+if "%HOST%"=="" set HOST=127.0.0.1
+echo 🚀 Starting proxy on %HOST%:%PORT%...
 start "CC-Flux Proxy" cmd /k "cd proxy && npm start"
 
 REM Ask to start TUI
@@ -36,7 +38,7 @@ if /i "%start_tui%"=="y" (
 echo ✅ CC-Flux is running!
 echo.
 echo 📖 Usage:
-echo    Set ANTHROPIC_BASE_URL=http://localhost:8080/v1
+echo    Set ANTHROPIC_BASE_URL=http://%HOST%:%PORT%
 echo    Then run: claude
 echo.
 pause

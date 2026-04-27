@@ -1,6 +1,6 @@
 # Phase 4 Reasoning and Compression Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox syntax for tracking.
 
 **Goal:** Finish Phase 4 by adding tested DeepSeek reasoning streaming, opt-in history compression, and compression controls in Admin API, CLI, TUI, and docs.
 
@@ -33,7 +33,7 @@
 - Create: `proxy/test/response.test.js`
 - Modify: `proxy/src/adapter/response.js`
 
-- [ ] **Step 1: Write failing reasoning tests**
+- [x] **Step 1: Write failing reasoning tests**
 
 Create `proxy/test/response.test.js` with tests that parse SSE events from `StreamAdapter.processChunk()`:
 
@@ -85,13 +85,13 @@ test('emits one message_stop for finish_reason followed by done', () => {
 });
 ```
 
-- [ ] **Step 2: Run response tests to verify RED**
+- [x] **Step 2: Run response tests to verify RED**
 
 Run: `cd proxy && npm test -- test/response.test.js`
 
 Expected: FAIL on duplicate `message_stop` or missing reasoning behavior depending on current local `response.js`.
 
-- [ ] **Step 3: Implement response adapter state**
+- [x] **Step 3: Implement response adapter state**
 
 Update `proxy/src/adapter/response.js` so `StreamAdapter` has:
 
@@ -109,13 +109,13 @@ emitStop(events) { /* emit message_stop once */ }
 
 Use `closeReasoningIfNeeded(events)` before final text/tool/stop transitions, and use `emitStop(events)` for both `finish_reason` and `[DONE]`.
 
-- [ ] **Step 4: Run response tests to verify GREEN**
+- [x] **Step 4: Run response tests to verify GREEN**
 
 Run: `cd proxy && npm test -- test/response.test.js`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit reasoning streaming**
+- [x] **Step 5: Commit reasoning streaming**
 
 ```bash
 git add proxy/src/adapter/response.js proxy/test/response.test.js
@@ -128,7 +128,7 @@ git commit -m "feat: harden reasoning stream adapter"
 - Create: `proxy/src/adapter/compression.js`
 - Create: `proxy/test/compression.test.js`
 
-- [ ] **Step 1: Write compression behavior tests**
+- [x] **Step 1: Write compression behavior tests**
 
 Create `proxy/test/compression.test.js` with tests for disabled mode, threshold behavior, system preservation, recent-message preservation, tool adjacency, and `reasoning_content` removal.
 
@@ -141,13 +141,13 @@ assert.equal(compressMessages(messages, { enabled: true, maxMessages: 4, keepRec
 assert.equal(JSON.stringify(result.messages).includes('reasoning_content'), false);
 ```
 
-- [ ] **Step 2: Run compression tests to verify RED**
+- [x] **Step 2: Run compression tests to verify RED**
 
 Run: `cd proxy && npm test -- test/compression.test.js`
 
 Expected: FAIL because `../src/adapter/compression` does not exist.
 
-- [ ] **Step 3: Implement compression module**
+- [x] **Step 3: Implement compression module**
 
 Create `proxy/src/adapter/compression.js` exporting:
 
@@ -163,13 +163,13 @@ module.exports = { DEFAULT_COMPRESSION, normalizeCompressionConfig, validateComp
 
 Implement compression by preserving leading system messages, expanding the recent window backward across assistant `tool_calls` and following `tool` messages, summarizing older non-system messages into one synthetic user message, and stripping any `reasoning_content` fields from cloned messages.
 
-- [ ] **Step 4: Run compression tests to verify GREEN**
+- [x] **Step 4: Run compression tests to verify GREEN**
 
 Run: `cd proxy && npm test -- test/compression.test.js`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit compression module**
+- [x] **Step 5: Commit compression module**
 
 ```bash
 git add proxy/src/adapter/compression.js proxy/test/compression.test.js
@@ -185,7 +185,7 @@ git commit -m "feat: add deterministic history compression"
 - Modify: `proxy/test/config.test.js`
 - Modify: `proxy/test/admin.test.js`
 
-- [ ] **Step 1: Write failing config/admin tests**
+- [x] **Step 1: Write failing config/admin tests**
 
 Add config tests proving env defaults and profile overrides:
 
@@ -202,7 +202,7 @@ POST /admin/compression { enabled: true, maxMessages: 20, keepRecent: 8 }
 POST /admin/compression { keepRecent: 99, maxMessages: 10 } -> 400 invalid_compression_config
 ```
 
-- [ ] **Step 2: Run tests to verify RED**
+- [x] **Step 2: Run tests to verify RED**
 
 Run:
 
@@ -212,11 +212,11 @@ cd proxy && npm test -- test/config.test.js test/admin.test.js
 
 Expected: FAIL because compression config/admin endpoints do not exist.
 
-- [ ] **Step 3: Implement runtime compression config**
+- [x] **Step 3: Implement runtime compression config**
 
 Update config/profile modules to include `compression`, `getCompression()`, and `updateCompression(updates)`. Use `validateCompressionConfig()` from `adapter/compression.js`. Redacted public config includes compression settings and no secrets.
 
-- [ ] **Step 4: Implement Admin endpoints**
+- [x] **Step 4: Implement Admin endpoints**
 
 Add:
 
@@ -225,7 +225,7 @@ fastify.get('/admin/compression', async () => ({ compression: config.getCompress
 fastify.post('/admin/compression', async (request, reply) => { /* partial update with validation */ });
 ```
 
-- [ ] **Step 5: Run config/admin tests to verify GREEN**
+- [x] **Step 5: Run config/admin tests to verify GREEN**
 
 Run:
 
@@ -235,7 +235,7 @@ cd proxy && npm test -- test/config.test.js test/admin.test.js
 
 Expected: PASS.
 
-- [ ] **Step 6: Commit runtime/Admin compression config**
+- [x] **Step 6: Commit runtime/Admin compression config**
 
 ```bash
 git add proxy/src/config.js proxy/src/config/profile-store.js proxy/src/admin.js proxy/test/config.test.js proxy/test/admin.test.js
@@ -250,11 +250,11 @@ git commit -m "feat: add compression admin config"
 - Modify: `proxy/bin/cc-flux.js`
 - Create: `proxy/test/cli-compression.test.js`
 
-- [ ] **Step 1: Write failing message-handler compression test**
+- [x] **Step 1: Write failing message-handler compression test**
 
 Extend `proxy/test/message-config.test.js` to configure compression via env/profile and assert upstream `calls[0].data.messages.length` is reduced and includes `[CC-Flux compressed conversation history]`.
 
-- [ ] **Step 2: Write failing CLI parser/formatter tests**
+- [x] **Step 2: Write failing CLI parser/formatter tests**
 
 Create `proxy/test/cli-compression.test.js` that imports pure helpers from `bin/cc-flux.js` or a small exported CLI helper and asserts:
 
@@ -264,7 +264,7 @@ parseCompressionCommand(['compression', 'set', '--max-messages', '32', '--keep-r
 formatCompressionStatus({ enabled: true, maxMessages: 32, keepRecent: 12 }).includes('enabled')
 ```
 
-- [ ] **Step 3: Run tests to verify RED**
+- [x] **Step 3: Run tests to verify RED**
 
 Run:
 
@@ -274,7 +274,7 @@ cd proxy && npm test -- test/message-config.test.js test/cli-compression.test.js
 
 Expected: FAIL because message handler does not compress and CLI helpers do not exist.
 
-- [ ] **Step 4: Apply compression before upstream call**
+- [x] **Step 4: Apply compression before upstream call**
 
 In `messageHandler`, after `convertRequest`, call:
 
@@ -285,7 +285,7 @@ targetBody.messages = compressionResult.messages;
 
 Log `compressionResult.meta` when applied or skipped with a non-disabled reason.
 
-- [ ] **Step 5: Add CLI compression commands**
+- [x] **Step 5: Add CLI compression commands**
 
 Add `compression` command support:
 
@@ -298,7 +298,7 @@ cc-flux compression set --max-messages 32 --keep-recent 12
 
 Use `/admin/compression` for reads/writes.
 
-- [ ] **Step 6: Run message/CLI tests to verify GREEN**
+- [x] **Step 6: Run message/CLI tests to verify GREEN**
 
 Run:
 
@@ -308,7 +308,7 @@ cd proxy && npm test -- test/message-config.test.js test/cli-compression.test.js
 
 Expected: PASS.
 
-- [ ] **Step 7: Commit message/CLI compression**
+- [x] **Step 7: Commit message/CLI compression**
 
 ```bash
 git add proxy/src/handlers/message.js proxy/bin/cc-flux.js proxy/test/message-config.test.js proxy/test/cli-compression.test.js
@@ -321,19 +321,19 @@ git commit -m "feat: apply compression and add cli controls"
 - Modify: `tui/main.go`
 - Modify: `tui/main_test.go`
 
-- [ ] **Step 1: Write failing TUI tests**
+- [x] **Step 1: Write failing TUI tests**
 
 Add Go tests proving `updateProxyConfig` refreshes status and `toggleCompression` posts to `/admin/compression` with the opposite enabled value.
 
 Use `httptest.NewServer` and set `apiBaseUrl = server.URL`.
 
-- [ ] **Step 2: Run TUI tests to verify RED**
+- [x] **Step 2: Run TUI tests to verify RED**
 
 Run: `cd tui && GOCACHE=/tmp/go-build-cache go test -count=1 ./...`
 
 Expected: FAIL until status/toggle helpers exist.
 
-- [ ] **Step 3: Implement status model and commands**
+- [x] **Step 3: Implement status model and commands**
 
 Add:
 
@@ -344,7 +344,7 @@ type CurrentResponse struct { Config struct { Provider string `json:"provider"`;
 
 Add `fetchCurrentStatus()` and `toggleCompression(current bool)` tea commands. On `c`, call toggle. Render compression status and active provider/model.
 
-- [ ] **Step 4: Run TUI tests and build**
+- [x] **Step 4: Run TUI tests and build**
 
 Run:
 
@@ -355,7 +355,7 @@ cd tui && GOCACHE=/tmp/go-build-cache go build -o cc-flux .
 
 Expected: both commands exit 0.
 
-- [ ] **Step 5: Commit TUI compression controls**
+- [x] **Step 5: Commit TUI compression controls**
 
 ```bash
 git add tui/main.go tui/main_test.go
@@ -367,11 +367,11 @@ git commit -m "feat: add tui compression controls"
 **Files:**
 - Modify: `README.md`
 
-- [ ] **Step 1: Update README**
+- [x] **Step 1: Update README**
 
 Document reasoning wrapper behavior, compression env vars, profile compression fields, CLI commands, TUI `c` toggle, and mark Phase 4 complete.
 
-- [ ] **Step 2: Verify docs terms**
+- [x] **Step 2: Verify docs terms**
 
 Run:
 
@@ -381,13 +381,13 @@ rg -n "reasoning_content|<thinking>|CC_FLUX_COMPRESSION_ENABLED|cc-flux compress
 
 Expected: all terms appear.
 
-- [ ] **Step 3: Run full proxy tests**
+- [x] **Step 3: Run full proxy tests**
 
 Run: `cd proxy && npm test`
 
 Expected: all Node tests pass.
 
-- [ ] **Step 4: Run full TUI tests and build**
+- [x] **Step 4: Run full TUI tests and build**
 
 Run:
 
@@ -398,7 +398,7 @@ cd tui && GOCACHE=/tmp/go-build-cache go build -o cc-flux .
 
 Expected: both commands exit 0.
 
-- [ ] **Step 5: Manual Admin/CLI smoke**
+- [x] **Step 5: Manual Admin/CLI smoke**
 
 Start proxy:
 
@@ -417,16 +417,15 @@ CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js compression o
 
 Expected: commands show compression state changes without exposing API keys.
 
-- [ ] **Step 6: Commit docs**
+- [x] **Step 6: Commit docs**
 
 ```bash
 git add README.md
 git commit -m "docs: document phase 4 controls"
 ```
 
-- [ ] **Step 7: Final git status**
+- [x] **Step 7: Final git status**
 
 Run: `git status --short --branch`
 
 Expected: only pre-existing unrelated local items remain if they were intentionally not part of Phase 4.
-

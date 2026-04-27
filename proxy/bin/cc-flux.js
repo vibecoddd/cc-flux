@@ -248,6 +248,15 @@ function runAsync(fn) {
   });
 }
 
+function runSync(fn) {
+  try {
+    fn();
+  } catch (error) {
+    console.error(`Error: ${error.message}`);
+    process.exit(1);
+  }
+}
+
 async function startProxy(args) {
   const { config: cliConfig } = parseArgs(args);
   const fileConfig = loadConfig();
@@ -346,7 +355,7 @@ switch (command) {
     break;
 
   case 'init':
-    runInit();
+    runSync(runInit);
     break;
 
   case 'doctor':

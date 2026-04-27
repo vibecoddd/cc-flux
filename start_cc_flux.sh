@@ -21,14 +21,19 @@ fi
 
 # Check for .env settings
 if [ -f "proxy/.env" ]; then
+    set -a
     source proxy/.env
+    set +a
 fi
 
 # Default port
 PORT=${PORT:-8080}
+HOST=${HOST:-127.0.0.1}
+export PORT
+export HOST
 
 # Start the proxy in background
-echo "🚀 Starting proxy on port $PORT..."
+echo "🚀 Starting proxy on $HOST:$PORT..."
 cd proxy
 node src/server.js &
 PROXY_PID=$!
@@ -38,7 +43,7 @@ cd ..
 echo "✅ CC-Flux is running!"
 echo ""
 echo "📖 Usage:"
-echo "   export ANTHROPIC_BASE_URL=http://localhost:$PORT/v1"
+echo "   export ANTHROPIC_BASE_URL=http://$HOST:$PORT"
 echo "   claude"
 echo ""
 echo "🎮 To start TUI: ./tui/cc-flux"

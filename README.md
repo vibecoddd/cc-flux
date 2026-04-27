@@ -10,7 +10,9 @@ It is designed for developers who want to use Claude Code with providers such as
 - **OpenAI-compatible routing**: converts Anthropic Messages requests to chat completions.
 - **Hot switching**: switch provider profiles from CLI or TUI while the proxy keeps running.
 - **Restart-stable profile state**: stores only the active profile id in a small local state file.
-- **Admin API**: inspect profiles, current runtime config, active compression settings, and switch profiles.
+- **Admin API**: inspect profiles, current runtime config, health, metrics, capabilities, active compression settings, and switch profiles.
+- **Local-first controls**: binds to `127.0.0.1` by default and can protect Admin API calls with `CC_FLUX_ADMIN_TOKEN`.
+- **Bootstrap and diagnostics**: `cc-flux init` creates local config files, and `cc-flux doctor` checks JSON config plus Admin API reachability.
 - **DeepSeek reasoning visibility**: streams `reasoning_content` as readable `<thinking>` text.
 - **History compression**: optional deterministic local compression for long sessions.
 - **Ollama retry mode**: local-model retry path for malformed tool-call JSON.
@@ -33,7 +35,7 @@ docs/superpowers/      Design specs and implementation plans
 
 - Node.js 18 or newer
 - npm
-- Go 1.20 or newer for the TUI
+- Go 1.24 or newer for the TUI
 - Claude Code CLI
 
 ## Install
@@ -54,6 +56,13 @@ Optional global CLI install from the local package:
 npm install -g ./proxy
 ```
 
+Create user-level config files:
+
+```bash
+cc-flux init
+cc-flux doctor
+```
+
 Without a global install, run the CLI as:
 
 ```bash
@@ -70,12 +79,14 @@ Common settings:
 
 ```bash
 PORT=8080
+HOST=127.0.0.1
 TARGET_PROVIDER=openai
 TARGET_BASE_URL=https://api.openai.com/v1
 TARGET_API_KEY=
 TARGET_MODEL=
 RETRY_ENABLED=false
 SOCKET_PATH=
+CC_FLUX_ADMIN_TOKEN=
 ```
 
 Compression settings:
@@ -89,6 +100,7 @@ CC_FLUX_COMPRESSION_KEEP_RECENT=16
 Profile/state path overrides:
 
 ```bash
+CC_FLUX_HOME=$HOME/.cc-flux
 CC_FLUX_PROVIDERS_PATH=/path/to/providers.json
 CC_FLUX_STATE_PATH=/path/to/state.json
 ```
@@ -97,6 +109,8 @@ Default lookup:
 
 - Profiles: `tui/providers.json`, `../tui/providers.json`, `providers.json`, then `~/.cc-flux/providers.json`
 - State: `~/.cc-flux/state.json`
+
+Set `HOST=0.0.0.0` only when you intentionally want the proxy reachable from other machines. When `CC_FLUX_ADMIN_TOKEN` is set, all `/admin/*` endpoints and legacy `POST /config` require `Authorization: Bearer <token>` or `X-CC-Flux-Admin-Token: <token>`.
 
 The state file stores only:
 
@@ -119,6 +133,10 @@ Edit `tui/providers.json` or point `CC_FLUX_PROVIDERS_PATH` at your own file.
   "apiKey": "",
   "model": "deepseek-reasoner",
   "retryEnabled": false,
+  "capabilities": {
+    "reasoning": true,
+    "tools": true
+  },
   "compression": {
     "enabled": true,
     "maxMessages": 48,
@@ -136,6 +154,7 @@ Profile fields:
 - `apiKey`: local API key. It is redacted in Admin API and CLI output.
 - `model`: upstream model name.
 - `retryEnabled`: optional retry mode override.
+- `capabilities`: optional capability overrides for status UIs. CC-Flux also infers `streaming`, `tools`, `reasoning`, `local`, `retry`, and `compression`.
 - `compression`: optional per-profile compression override.
 
 ## Run
@@ -201,8 +220,12 @@ Commands:
 
 ```bash
 cc-flux start
+cc-flux init
+cc-flux doctor
 cc-flux profiles
 cc-flux current
+cc-flux health
+cc-flux metrics
 cc-flux switch deepseek-reasoner
 cc-flux compression
 cc-flux compression on
@@ -217,6 +240,12 @@ For a proxy on a non-default port:
 CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 cc-flux current
 ```
 
+For a token-protected Admin API:
+
+```bash
+CC_FLUX_ADMIN_TOKEN=secret cc-flux health
+```
+
 ## TUI
 
 The TUI loads local provider profiles and talks to the running proxy Admin API.
@@ -225,10 +254,11 @@ Controls:
 
 - `up` / `down` or `k` / `j`: move selection
 - `enter`: switch to selected profile
+- `r`: refresh runtime status
 - `c`: toggle compression for future requests
 - `q` or `ctrl+c`: quit
 
-The status area shows the active provider/model and compression state when the proxy is reachable.
+The status area shows the active provider/model and compression state when the proxy is reachable. If the Admin API is token-protected, start the TUI with the same `CC_FLUX_ADMIN_TOKEN`.
 
 ## Admin API
 
@@ -237,6 +267,8 @@ The proxy exposes local Admin API endpoints:
 ```http
 GET  /admin/profiles
 GET  /admin/current
+GET  /admin/health
+GET  /admin/metrics
 GET  /admin/compression
 POST /admin/compression
 POST /admin/switch
@@ -248,6 +280,8 @@ Examples:
 ```bash
 curl -fsS http://localhost:8080/admin/profiles
 curl -fsS http://localhost:8080/admin/current
+curl -fsS http://localhost:8080/admin/health
+curl -fsS http://localhost:8080/admin/metrics
 curl -fsS -X POST http://localhost:8080/admin/switch \
   -H 'Content-Type: application/json' \
   -d '{"id":"deepseek-reasoner"}'
@@ -257,6 +291,13 @@ curl -fsS -X POST http://localhost:8080/admin/compression \
 ```
 
 Admin responses redact API keys.
+
+With `CC_FLUX_ADMIN_TOKEN=secret`:
+
+```bash
+curl -fsS http://localhost:8080/admin/health \
+  -H 'Authorization: Bearer secret'
+```
 
 ## Reasoning Output
 
@@ -325,6 +366,8 @@ In another terminal:
 CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js profiles
 CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js switch deepseek-reasoner
 CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js compression on
+CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js health
+CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js metrics
 CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js current
 ```
 
@@ -334,11 +377,14 @@ CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js current
 - [x] Phase 2: Go-based interactive model selector.
 - [x] Phase 3: Ollama/local-model optimization and retry behavior.
 - [x] Phase 4: DeepSeek reasoning visibility and deterministic history compression.
+- [x] Phase 5: Localhost-safe defaults, Admin API auth, health/metrics, setup/doctor commands, and provider capabilities.
 
 ## Security
 
 - API keys stay local in environment variables or provider profile files.
 - Admin API, CLI, and TUI status responses redact API keys.
+- TCP mode binds to `127.0.0.1` by default. Use `HOST=0.0.0.0` only for deliberate LAN/container exposure.
+- Set `CC_FLUX_ADMIN_TOKEN` to require bearer-token auth for `/admin/*` and legacy `POST /config`.
 - `~/.cc-flux/state.json` stores only the active profile id.
 - Compression summaries are sent only to the selected upstream provider as part of the active request and are not persisted by CC-Flux.
 
