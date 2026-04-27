@@ -65,8 +65,11 @@ function applyInitialState() {
 }
 
 function get() {
-  const { adminToken, ...state } = runtimeState;
-  return { ...state };
+  const { adminToken, capabilityOverrides, ...state } = runtimeState;
+  return {
+    ...state,
+    capabilities: store.inferRuntimeCapabilities(runtimeState)
+  };
 }
 
 function getPublic() {

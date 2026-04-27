@@ -68,6 +68,63 @@ function saveState(activeProviderId, statePath = resolveStatePath()) {
   }
 }
 
+function normalizeCapabilityOverrides(capabilities) {
+  if (!capabilities || typeof capabilities !== 'object' || Array.isArray(capabilities)) {
+    return {};
+  }
+
+  const overrides = {};
+  for (const key of ['streaming', 'tools', 'reasoning', 'local', 'retry', 'compression']) {
+    if (typeof capabilities[key] === 'boolean') {
+      overrides[key] = capabilities[key];
+    }
+  }
+  return overrides;
+}
+
+function isLocalBaseUrl(baseUrl) {
+  try {
+    const parsed = new URL(baseUrl);
+    return ['localhost', '127.0.0.1', '::1'].includes(parsed.hostname);
+  } catch (error) {
+    return false;
+  }
+}
+
+function inferCapabilities(profile, options = {}) {
+  const provider = String(profile.provider || '').toLowerCase();
+  const baseUrl = String(profile.baseUrl || '');
+  const model = String(profile.model || '').toLowerCase();
+  const compression = options.compression || normalizeCompressionConfig(profile.compression || {});
+  const retryEnabled = options.retryEnabled !== undefined
+    ? Boolean(options.retryEnabled)
+    : Boolean(profile.retryEnabled);
+
+  return {
+    streaming: true,
+    tools: true,
+    reasoning: provider === 'deepseek' || model.includes('reasoner') || model.includes('r1'),
+    local: provider === 'ollama' || isLocalBaseUrl(baseUrl),
+    retry: retryEnabled || provider === 'ollama',
+    compression: Boolean(compression.enabled),
+    ...normalizeCapabilityOverrides(profile.capabilities)
+  };
+}
+
+function inferRuntimeCapabilities(config) {
+  return inferCapabilities({
+    provider: config.targetProvider,
+    baseUrl: config.targetBaseUrl,
+    model: config.targetModel,
+    retryEnabled: config.retryEnabled,
+    compression: config.compression,
+    capabilities: config.capabilityOverrides
+  }, {
+    retryEnabled: config.retryEnabled,
+    compression: config.compression
+  });
+}
+
 function validateProfile(profile) {
   if (!profile || typeof profile !== 'object') {
     return { valid: false, message: 'Profile must be an object.' };
@@ -91,6 +148,7 @@ function profileToRuntime(profile, baseState) {
   const profileCompression = profile.compression
     ? normalizeCompressionConfig({ ...baseState.compression, ...profile.compression })
     : baseState.compression;
+  const retryEnabled = profile.retryEnabled !== undefined ? Boolean(profile.retryEnabled) : baseState.retryEnabled;
 
   return {
     ...baseState,
@@ -98,9 +156,10 @@ function profileToRuntime(profile, baseState) {
     targetBaseUrl: profile.baseUrl,
     targetApiKey: profile.apiKey || '',
     targetModel: profile.model,
-    retryEnabled: profile.retryEnabled !== undefined ? Boolean(profile.retryEnabled) : baseState.retryEnabled,
+    retryEnabled,
     activeProviderId: profile.id,
-    compression: profileCompression
+    compression: profileCompression,
+    capabilityOverrides: normalizeCapabilityOverrides(profile.capabilities)
   };
 }
 
@@ -114,6 +173,7 @@ function redactRuntimeConfig(config) {
     socketPath: config.socketPath,
     activeProviderId: config.activeProviderId || null,
     compression: { ...config.compression },
+    capabilities: inferRuntimeCapabilities(config),
     apiKeyConfigured: Boolean(config.targetApiKey)
   };
 }
@@ -127,6 +187,7 @@ function redactProfile(profile) {
     model: profile.model,
     retryEnabled: Boolean(profile.retryEnabled),
     compression: profile.compression ? normalizeCompressionConfig(profile.compression) : null,
+    capabilities: inferCapabilities(profile),
     apiKeyConfigured: Boolean(profile.apiKey)
   };
 }
@@ -140,6 +201,8 @@ function createConfigError(statusCode, code, message) {
 
 module.exports = {
   createConfigError,
+  inferCapabilities,
+  inferRuntimeCapabilities,
   loadProfiles,
   loadState,
   profileToRuntime,

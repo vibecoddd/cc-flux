@@ -78,6 +78,14 @@ test('restores active profile from state file', () => {
       enabled: false,
       maxMessages: 40,
       keepRecent: 16
+    },
+    capabilities: {
+      streaming: true,
+      tools: true,
+      reasoning: true,
+      local: false,
+      retry: true,
+      compression: false
     }
   });
 });
@@ -192,6 +200,62 @@ test('public config and profile list redact API keys', () => {
   assert.equal('targetApiKey' in config.getPublic(), false);
   assert.equal(config.listProfiles()[0].apiKeyConfigured, true);
   assert.equal('apiKey' in config.listProfiles()[0], false);
+});
+
+test('profile capabilities are inferred and overridable', () => {
+  const dir = tempDir();
+  const providersPath = path.join(dir, 'providers.json');
+  writeJson(providersPath, [
+    {
+      id: 'deepseek-reasoner',
+      name: 'DeepSeek - Reasoner',
+      provider: 'deepseek',
+      baseUrl: 'https://api.deepseek.com',
+      model: 'deepseek-reasoner',
+      capabilities: {
+        tools: false
+      }
+    },
+    {
+      id: 'ollama-local',
+      name: 'Local - Ollama',
+      provider: 'ollama',
+      baseUrl: 'http://localhost:11434/v1',
+      model: 'llama3',
+      compression: {
+        enabled: true,
+        maxMessages: 18,
+        keepRecent: 6
+      }
+    }
+  ]);
+
+  const config = loadFreshConfig({
+    CC_FLUX_PROVIDERS_PATH: providersPath,
+    CC_FLUX_STATE_PATH: path.join(dir, 'state.json')
+  });
+
+  const profiles = config.listProfiles();
+  assert.deepEqual(profiles[0].capabilities, {
+    streaming: true,
+    tools: false,
+    reasoning: true,
+    local: false,
+    retry: false,
+    compression: false
+  });
+  assert.deepEqual(profiles[1].capabilities, {
+    streaming: true,
+    tools: true,
+    reasoning: false,
+    local: true,
+    retry: true,
+    compression: true
+  });
+
+  config.switchProfile('ollama-local');
+  assert.equal(config.getPublic().capabilities.local, true);
+  assert.equal(config.getPublic().capabilities.compression, true);
 });
 
 test('loads compression settings from env', () => {
