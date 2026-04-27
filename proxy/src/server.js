@@ -17,7 +17,7 @@ function buildServer(options = {}) {
 
   registerAdminRoutes(fastify);
 
-  fastify.post('/config', async (request, reply) => {
+  fastify.post('/config', { preHandler: registerAdminRoutes.requireAdminAuth }, async (request, reply) => {
     const body = request.body;
     if (!body) return reply.code(400).send({ error: 'Missing body' });
 
@@ -52,8 +52,8 @@ const start = async () => {
       console.log(`CC-Flux Proxy listening on IPC path: ${cfg.socketPath}`);
     } else {
       // Listen on TCP
-      await fastify.listen({ port: cfg.port, host: '0.0.0.0' });
-      console.log(`CC-Flux Proxy listening on ${fastify.server.address().port}`);
+      await fastify.listen({ port: cfg.port, host: cfg.host });
+      console.log(`CC-Flux Proxy listening on ${cfg.host}:${fastify.server.address().port}`);
     }
     
   } catch (err) {

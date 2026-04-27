@@ -22,6 +22,9 @@ function loadFreshConfig(env) {
     'TARGET_API_KEY',
     'TARGET_MODEL',
     'RETRY_ENABLED',
+    'HOST',
+    'CC_FLUX_HOST',
+    'CC_FLUX_ADMIN_TOKEN',
     'CC_FLUX_COMPRESSION_ENABLED',
     'CC_FLUX_COMPRESSION_MAX_MESSAGES',
     'CC_FLUX_COMPRESSION_KEEP_RECENT'
@@ -62,6 +65,7 @@ test('restores active profile from state file', () => {
 
   assert.deepEqual(config.get(), {
     port: 8080,
+    host: '127.0.0.1',
     targetProvider: 'deepseek',
     targetBaseUrl: 'https://api.deepseek.com',
     targetApiKey: 'sk-test',

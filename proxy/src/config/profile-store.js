@@ -101,6 +101,7 @@ function profileToRuntime(profile, baseState) {
 
 function redactRuntimeConfig(config) {
   return {
+    host: config.host,
     provider: config.targetProvider,
     baseUrl: config.targetBaseUrl,
     model: config.targetModel,

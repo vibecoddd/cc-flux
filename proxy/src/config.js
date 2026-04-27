@@ -13,6 +13,8 @@ function envBool(value) {
 function baseStateFromEnv() {
   return {
     port: Number(process.env.PORT || 8080),
+    host: process.env.HOST || process.env.CC_FLUX_HOST || '127.0.0.1',
+    adminToken: process.env.CC_FLUX_ADMIN_TOKEN || '',
     targetProvider: process.env.TARGET_PROVIDER || 'openai',
     targetBaseUrl: process.env.TARGET_BASE_URL || 'https://api.openai.com/v1',
     targetApiKey: process.env.TARGET_API_KEY || '',
@@ -63,11 +65,16 @@ function applyInitialState() {
 }
 
 function get() {
-  return { ...runtimeState };
+  const { adminToken, ...state } = runtimeState;
+  return { ...state };
 }
 
 function getPublic() {
   return store.redactRuntimeConfig(runtimeState);
+}
+
+function getAdminToken() {
+  return runtimeState.adminToken;
 }
 
 function getCompression() {
@@ -127,6 +134,7 @@ function update(updates) {
   if (updates.targetModel) runtimeState.targetModel = updates.targetModel;
   if (updates.retryEnabled !== undefined) runtimeState.retryEnabled = Boolean(updates.retryEnabled);
   if (updates.socketPath !== undefined) runtimeState.socketPath = updates.socketPath;
+  if (updates.host !== undefined) runtimeState.host = updates.host;
   if (updates.compression !== undefined) updateCompression(updates.compression);
   runtimeState.activeProviderId = null;
   console.log('[Config] Updated:', getPublic());
@@ -137,6 +145,7 @@ applyInitialState();
 
 module.exports = {
   get,
+  getAdminToken,
   getCompression,
   getMeta,
   getPublic,
