@@ -1,7 +1,7 @@
 # Phase 6 Productization and Developer Experience Design
 
 Date: 2026-04-29
-Status: Proposed
+Status: Approved
 
 ## Context
 
@@ -56,12 +56,14 @@ Installation should support two clear paths:
 - Local repository usage for contributors and advanced users.
 - Global CLI usage for users who want `cc-flux` on their PATH.
 
-The docs should show exactly when to run `npm install`, `npm install -g ./proxy`, TUI build commands, and startup scripts. Existing shell and batch scripts should be treated as first-class user entry points, not incidental helpers.
+The docs should show exactly when to run `npm install`, `npm install -g ./proxy`, `npm link` for local CLI development/debugging, TUI build commands, and startup scripts. Existing shell and batch scripts should be treated as first-class user entry points, not incidental helpers.
 
 Success criteria:
 
 - README has one short quick-start path and a separate development path.
+- Local development docs explain when to use `npm link` and how to undo or refresh it.
 - Linux/macOS and Windows startup commands are both documented.
+- TUI build instructions are explicit and include the expected binary location.
 - Missing dependency failures name the missing tool and the command or link needed to resolve it.
 
 ### Configure
@@ -72,6 +74,7 @@ The initialized setup should guide users toward:
 
 - `~/.cc-flux/providers.json`
 - `~/.cc-flux/state.json`
+- `proxy/.env.example` as the template for local `.env` fallback configuration
 - the active profile id
 - provider API key placement
 - `ANTHROPIC_BASE_URL=http://localhost:8080`
@@ -83,23 +86,27 @@ Success criteria:
 
 - A user can identify the active providers file path from CLI output.
 - A missing API key, model, or base URL is reported before the user enters Claude Code.
+- README explains when to use provider profiles versus `.env`, and points to `.env.example`.
 - Existing `.env` fallback behavior stays compatible.
 
 ### Diagnose
 
 `cc-flux doctor` should become the primary support artifact. It should distinguish local environment failures, proxy reachability failures, provider profile problems, Admin API authentication issues, and Claude Code environment setup gaps.
 
-Doctor checks should cover:
+Required doctor checks should cover:
 
 - Node.js availability and version.
-- Optional Go/TUI build availability when relevant.
-- Claude Code CLI availability when present on PATH.
 - providers file path, parse status, profile count, active profile id, and redacted profile validity.
 - state file path and parse status.
 - proxy Admin API reachability.
 - Admin token mismatch or missing token.
 - configured host and port.
 - common port conflicts.
+
+Optional doctor checks should cover:
+
+- Go availability and TUI build readiness when the user asks to validate TUI.
+- Claude Code CLI availability when present on PATH or when the user asks for end-to-end Claude Code validation.
 - active provider base URL shape and optional reachability probe.
 - TUI binary path hints.
 
@@ -110,6 +117,7 @@ Success criteria:
 - Every failed doctor check has a concrete repair suggestion.
 - Doctor can run offline and still validate local files.
 - Doctor can optionally validate a running proxy without exposing API keys.
+- Doctor output labels checks as required or optional so missing Claude Code or Go does not look like a proxy failure.
 
 ### Release
 
@@ -230,6 +238,7 @@ Manual smoke checks should cover:
 - CLI `current`, `profiles`, `health`, `metrics`, and `doctor`
 - one profile switch
 - TUI build and launch path
+- `cc-flux tui` startup path from the CLI entrypoint
 - README quick-start commands
 
 ## Documentation
@@ -245,13 +254,17 @@ README should be reorganized around user intent:
 - Development
 - Release Process
 
+Quick Start should remain first and should contain the shortest successful path. Development details, including `npm link`, local package internals, and maintainer release steps, should appear later so first-time users do not have to sort through contributor workflow details.
+
 Detailed release or troubleshooting material may live in separate docs if README becomes too long, but the quick path must remain visible.
 
 ## Acceptance Criteria
 
 - A new user can follow the documented quick start without reading source code.
 - `cc-flux doctor` identifies local config and proxy reachability issues with repair suggestions.
+- Required and optional doctor checks are clearly separated.
 - Windows and Linux/macOS startup paths are documented.
+- TUI build docs and Windows batch or PowerShell startup paths are covered as part of the install/startup scope.
 - Release readiness has a documented checklist and local verification command.
 - Existing hot-switch, compression, Admin API, and TUI behavior remain compatible.
 - No automatic routing, hosted dashboard, or credential sync is introduced.
