@@ -1,8 +1,12 @@
 # CC-Flux
 
-CC-Flux is a lightweight LLM gateway for Claude Code. It exposes an Anthropic-compatible `/v1/messages` endpoint locally, translates requests to OpenAI-compatible providers, and lets you hot-switch the active backend without restarting your Claude Code session.
+CC-Flux is a local-first Claude Code LLM gateway with OpenAI-compatible routing and hot-switchable providers. It exposes an Anthropic-compatible `/v1/messages` endpoint locally, translates requests to OpenAI-compatible providers, and lets you hot-switch the active backend without restarting your Claude Code session.
 
 It is designed for developers who want to use Claude Code with providers such as OpenAI-compatible APIs, DeepSeek, MiniMax, Zhipu GLM, or local Ollama models while keeping API keys and routing state on the local machine.
+
+## About
+
+CC-Flux keeps Claude Code decoupled from a single upstream provider. Run it as a local gateway, configure multiple cloud or local model profiles, switch the active backend from the CLI or TUI, and keep provider credentials plus routing state on your machine.
 
 ## Features
 

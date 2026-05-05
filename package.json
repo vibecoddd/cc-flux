@@ -1,7 +1,7 @@
 {
   "name": "cc-flux",
   "version": "1.0.0",
-  "description": "Multimodal Coding Agent Proxy - Decouple Claude Code from Anthropic API",
+  "description": "Local-first Claude Code LLM gateway with OpenAI-compatible routing and hot-switchable providers",
   "workspaces": [
     "proxy",
     "tui"
