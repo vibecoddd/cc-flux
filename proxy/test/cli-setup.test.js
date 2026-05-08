@@ -47,7 +47,7 @@ test('initializeConfig creates default provider and state files without overwrit
   });
 });
 
-test('buildDoctorReport validates providers and state json files', () => {
+test('buildDoctorReport validates providers and state json files', async () => {
   const home = tempDir();
   const providersPath = path.join(home, 'providers.json');
   const statePath = path.join(home, 'state.json');
@@ -55,12 +55,12 @@ test('buildDoctorReport validates providers and state json files', () => {
   fs.writeFileSync(providersPath, '{not-json');
   fs.writeFileSync(statePath, JSON.stringify({ activeProviderId: 'openai-gpt4o' }, null, 2));
 
-  const report = buildDoctorReport({ env: { CC_FLUX_HOME: home } });
+  const report = await buildDoctorReport({ env: { CC_FLUX_HOME: home } });
   assert.equal(report.providers.status, 'invalid');
   assert.equal(report.state.status, 'ok');
   assert.equal(report.ok, false);
 
   const output = formatDoctorReport(report);
   assert.match(output, /Providers: invalid/);
-  assert.match(output, /State: ok/);
+  assert.match(output, /state\.json/);
 });

@@ -219,16 +219,23 @@ async function manageCompression(args) {
   console.log(formatCompressionStatus(body.compression));
 }
 
-async function runDoctor() {
-  const report = buildDoctorReport();
-  console.log(formatDoctorReport(report));
+async function runDoctor(args) {
+  const options = {
+    withTui: args.includes('--with-tui') || args.includes('-t'),
+    withClaude: args.includes('--with-claude') || args.includes('-c')
+  };
+
+  const report = await buildDoctorReport(options);
 
   try {
     const health = await adminRequest('/admin/health');
-    console.log(`Admin API: reachable (${health.status})`);
+    report.adminReachable = true;
   } catch (error) {
-    console.log(`Admin API: not reachable (${error.message})`);
+    report.adminReachable = false;
+    report.adminError = error.message;
   }
+
+  console.log(formatDoctorReport(report));
 
   if (!report.ok) {
     process.exitCode = 1;
@@ -359,7 +366,7 @@ switch (command) {
     break;
 
   case 'doctor':
-    runAsync(runDoctor);
+    runAsync(() => runDoctor(args.slice(1)));
     break;
     
   case 'tui':

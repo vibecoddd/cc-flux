@@ -1,132 +1,96 @@
 # CC-Flux
 
-CC-Flux is a local-first Claude Code LLM gateway with OpenAI-compatible routing and hot-switchable providers. It exposes an Anthropic-compatible `/v1/messages` endpoint locally, translates requests to OpenAI-compatible providers, and lets you hot-switch the active backend without restarting your Claude Code session.
+**Local-first Claude Code gateway with OpenAI-compatible routing and hot-switchable providers.**
 
-It is designed for developers who want to use Claude Code with providers such as OpenAI-compatible APIs, DeepSeek, MiniMax, Zhipu GLM, or local Ollama models while keeping API keys and routing state on the local machine.
+CC-Flux exposes an Anthropic-compatible `/v1/messages` endpoint locally, translates requests to OpenAI-compatible providers (DeepSeek, Ollama, OpenAI, etc.), and lets you hot-switch the active backend without restarting your Claude Code session.
 
-## About
+---
 
-CC-Flux keeps Claude Code decoupled from a single upstream provider. Run it as a local gateway, configure multiple cloud or local model profiles, switch the active backend from the CLI or TUI, and keep provider credentials plus routing state on your machine.
+## Quick Start
 
-## Features
-
-- **Claude Code gateway**: point Claude Code at `http://localhost:8080` with `ANTHROPIC_BASE_URL`.
-- **OpenAI-compatible routing**: converts Anthropic Messages requests to chat completions.
-- **Hot switching**: switch provider profiles from CLI or TUI while the proxy keeps running.
-- **Restart-stable profile state**: stores only the active profile id in a small local state file.
-- **Admin API**: inspect profiles, current runtime config, health, metrics, capabilities, active compression settings, and switch profiles.
-- **Local-first controls**: binds to `127.0.0.1` by default and can protect Admin API calls with `CC_FLUX_ADMIN_TOKEN`.
-- **Bootstrap and diagnostics**: `cc-flux init` creates local config files, and `cc-flux doctor` checks JSON config plus Admin API reachability.
-- **DeepSeek reasoning visibility**: streams `reasoning_content` as readable `<thinking>` text.
-- **History compression**: optional deterministic local compression for long sessions.
-- **Ollama retry mode**: local-model retry path for malformed tool-call JSON.
-
-## Project Layout
-
-```text
-proxy/                 Node.js Fastify gateway
-proxy/src/adapter/     Anthropic <-> OpenAI-compatible request/response adapters
-proxy/src/config/      Provider profile and state loading
-proxy/src/admin.js     Admin API routes
-proxy/bin/cc-flux.js   CLI entrypoint
-proxy/test/            Node test suite
-tui/                   Go Bubble Tea terminal UI
-tui/providers.json     Default provider profiles
-docs/superpowers/      Design specs and implementation plans
-```
-
-## Requirements
-
-- Node.js 18 or newer
-- npm
-- Go 1.24 or newer for the TUI
-- Claude Code CLI
-
-## Install
-
-From a fresh checkout:
+### 1. Install dependencies
 
 ```bash
-cd proxy
-npm install
+# Install proxy dependencies
+cd proxy && npm install
 
-cd ../tui
-go build -o cc-flux .
+# Build TUI (optional but recommended)
+cd ../tui && go build -o cc-flux .
 ```
 
-Optional global CLI install from the local package:
-
-```bash
-npm install -g ./proxy
-```
-
-Create user-level config files:
+### 2. Initialize config
 
 ```bash
 cc-flux init
+```
+
+### 3. Add your API key
+
+Edit `~/.cc-flux/providers.json` and add your API key to the profile you want to use.
+
+### 4. Start the proxy
+
+```bash
+cc-flux start
+```
+
+### 5. Connect Claude Code
+
+```bash
+export ANTHROPIC_BASE_URL=http://localhost:8080
+claude
+```
+
+### 6. Verify everything works
+
+```bash
 cc-flux doctor
 ```
 
-Without a global install, run the CLI as:
+---
+
+## Install Options
+
+### Global CLI install
 
 ```bash
+cd proxy && npm install -g ./
+```
+
+This installs `cc-flux` globally so you can run it from anywhere.
+
+### Local development
+
+Run without installing:
+
+```bash
+# Proxy
+cd proxy && npm start
+
+# CLI (in another terminal)
 node proxy/bin/cc-flux.js <command>
+
+# TUI (in another terminal)
+cd tui && ./cc-flux
 ```
 
-## Configuration
-
-### Proxy Environment
-
-`proxy/src/config.js` reads `.env` and process environment values.
-
-Common settings:
+### Platform-specific startup
 
 ```bash
-PORT=8080
-HOST=127.0.0.1
-TARGET_PROVIDER=openai
-TARGET_BASE_URL=https://api.openai.com/v1
-TARGET_API_KEY=
-TARGET_MODEL=
-RETRY_ENABLED=false
-SOCKET_PATH=
-CC_FLUX_ADMIN_TOKEN=
+# Linux/macOS
+./start_cc_flux.sh
+
+# Windows
+start_cc_flux.bat
 ```
 
-Compression settings:
+---
 
-```bash
-CC_FLUX_COMPRESSION_ENABLED=false
-CC_FLUX_COMPRESSION_MAX_MESSAGES=40
-CC_FLUX_COMPRESSION_KEEP_RECENT=16
-```
+## Configure Providers
 
-Profile/state path overrides:
+### Provider profiles
 
-```bash
-CC_FLUX_HOME=$HOME/.cc-flux
-CC_FLUX_PROVIDERS_PATH=/path/to/providers.json
-CC_FLUX_STATE_PATH=/path/to/state.json
-```
-
-Default lookup:
-
-- Profiles: `tui/providers.json`, `../tui/providers.json`, `providers.json`, then `~/.cc-flux/providers.json`
-- State: `~/.cc-flux/state.json`
-
-Set `HOST=0.0.0.0` only when you intentionally want the proxy reachable from other machines. When `CC_FLUX_ADMIN_TOKEN` is set, all `/admin/*` endpoints and legacy `POST /config` require `Authorization: Bearer <token>` or `X-CC-Flux-Admin-Token: <token>`.
-
-The state file stores only:
-
-```json
-{
-  "activeProviderId": "deepseek-reasoner"
-}
-```
-
-### Provider Profiles
-
-Edit `tui/providers.json` or point `CC_FLUX_PROVIDERS_PATH` at your own file.
+Edit `~/.cc-flux/providers.json` to configure your model providers:
 
 ```json
 {
@@ -134,269 +98,251 @@ Edit `tui/providers.json` or point `CC_FLUX_PROVIDERS_PATH` at your own file.
   "name": "DeepSeek - Reasoner (R1)",
   "provider": "deepseek",
   "baseUrl": "https://api.deepseek.com",
-  "apiKey": "",
+  "apiKey": "sk-your-key-here",
   "model": "deepseek-reasoner",
-  "retryEnabled": false,
-  "capabilities": {
-    "reasoning": true,
-    "tools": true
-  },
-  "compression": {
-    "enabled": true,
-    "maxMessages": 48,
-    "keepRecent": 18
-  }
+  "retryEnabled": true
 }
 ```
 
-Profile fields:
+### Environment variables
 
-- `id`: stable profile id used by CLI/TUI/state.
-- `name`: human-readable label.
-- `provider`: adapter mode, such as `openai`, `deepseek`, or `ollama`.
-- `baseUrl`: OpenAI-compatible API base URL.
-- `apiKey`: local API key. It is redacted in Admin API and CLI output.
-- `model`: upstream model name.
-- `retryEnabled`: optional retry mode override.
-- `capabilities`: optional capability overrides for status UIs. CC-Flux also infers `streaming`, `tools`, `reasoning`, `local`, `retry`, and `compression`.
-- `compression`: optional per-profile compression override.
-
-## Run
-
-Start the proxy:
+Alternatively, configure via environment variables:
 
 ```bash
-cd proxy
-npm start
+PORT=8080
+TARGET_PROVIDER=deepseek
+TARGET_BASE_URL=https://api.deepseek.com
+TARGET_API_KEY=sk-your-key-here
+TARGET_MODEL=deepseek-reasoner
 ```
 
-Or from the repository root:
+See `.env.example` in the proxy directory for all available options.
+
+### Compression settings
+
+Control history compression to manage token usage:
 
 ```bash
-npm start
+CC_FLUX_COMPRESSION_ENABLED=true
+CC_FLUX_COMPRESSION_MAX_MESSAGES=40
+CC_FLUX_COMPRESSION_KEEP_RECENT=16
 ```
 
-Start the TUI in another terminal:
-
-```bash
-cd tui
-./cc-flux
-```
-
-Quick-start scripts are also available:
-
-```bash
-./start_cc_flux.sh
-```
-
-```cmd
-start_cc_flux.bat
-```
+---
 
 ## Connect Claude Code
 
-Use CC-Flux as an LLM gateway:
+Set the `ANTHROPIC_BASE_URL` environment variable to point Claude Code at CC-Flux:
 
 ```bash
 export ANTHROPIC_BASE_URL=http://localhost:8080
 claude
 ```
 
-Some Claude Code versions also recognize `CLAUDE_BASE_URL`; use `/status` inside Claude Code to verify the active base URL.
+Some Claude Code versions also recognize `CLAUDE_BASE_URL`.
 
-Do not use `HTTPS_PROXY` for protocol translation. A normal HTTPS proxy can tunnel encrypted traffic but cannot rewrite Anthropic request bodies into OpenAI-compatible requests without local TLS inspection.
+Verify the connection inside Claude Code:
 
-## CLI
-
-If installed globally:
-
-```bash
-cc-flux <command>
+```
+/status
 ```
 
-From the repository without global install:
+> **Note:** Do not use `HTTPS_PROXY` for protocol translation. A plain HTTPS proxy can tunnel encrypted traffic but cannot rewrite request bodies.
+
+---
+
+## Daily Commands
+
+### List available profiles
 
 ```bash
-node proxy/bin/cc-flux.js <command>
-```
-
-Commands:
-
-```bash
-cc-flux start
-cc-flux init
-cc-flux doctor
 cc-flux profiles
+```
+
+### Show current configuration
+
+```bash
 cc-flux current
-cc-flux health
-cc-flux metrics
+```
+
+### Switch to a different provider
+
+```bash
 cc-flux switch deepseek-reasoner
-cc-flux compression
-cc-flux compression on
-cc-flux compression set --max-messages 32 --keep-recent 12
-cc-flux compression off
+```
+
+### Check proxy health
+
+```bash
+cc-flux health
+```
+
+### View metrics
+
+```bash
+cc-flux metrics
+```
+
+### Control compression
+
+```bash
+cc-flux compression        # Show current settings
+cc-flux compression on     # Enable compression
+cc-flux compression off    # Disable compression
+cc-flux compression set --max-messages 32 --keep-recent 12  # Custom settings
+```
+
+### Run diagnostics
+
+```bash
+cc-flux doctor             # Basic checks
+cc-flux doctor --with-tui  # Include TUI/Go checks
+```
+
+### Start the TUI
+
+```bash
 cc-flux tui
 ```
 
-For a proxy on a non-default port:
+---
+
+## TUI Controls
+
+- `↑` / `↓` or `k` / `j`: Move selection
+- `Enter`: Switch to selected profile
+- `r`: Refresh runtime status
+- `c`: Toggle compression
+- `q` or `Ctrl+C`: Quit
+
+---
+
+## Troubleshooting
+
+### Proxy not reachable
+
+1. Start the proxy first: `cc-flux start`
+2. Check if it's running on the expected port: `cc-flux health`
+
+### Doctor shows "not reachable"
+
+1. Verify the proxy is running on the expected port
+2. Check for port conflicts: `cc-flux doctor`
+3. Make sure PORT matches between proxy and CLI
+
+### Missing API key
 
 ```bash
-CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 cc-flux current
+# Find your providers file
+cc-flux doctor | grep providers
+
+# Edit the file
+nano ~/.cc-flux/providers.json
 ```
 
-For a token-protected Admin API:
+### Claude Code not connecting
+
+1. Verify the base URL inside Claude Code: `/status`
+2. Make sure `ANTHROPIC_BASE_URL` is set correctly
+3. Check proxy health: `cc-flux health`
+
+### Port already in use
 
 ```bash
-CC_FLUX_ADMIN_TOKEN=secret cc-flux health
+# Find what's using the port
+lsof -i :8080  # macOS/Linux
+
+# Change the port
+PORT=8081 cc-flux start
 ```
 
-## TUI
-
-The TUI loads local provider profiles and talks to the running proxy Admin API.
-
-Controls:
-
-- `up` / `down` or `k` / `j`: move selection
-- `enter`: switch to selected profile
-- `r`: refresh runtime status
-- `c`: toggle compression for future requests
-- `q` or `ctrl+c`: quit
-
-The status area shows the active provider/model and compression state when the proxy is reachable. If the Admin API is token-protected, start the TUI with the same `CC_FLUX_ADMIN_TOKEN`.
-
-## Admin API
-
-The proxy exposes local Admin API endpoints:
-
-```http
-GET  /admin/profiles
-GET  /admin/current
-GET  /admin/health
-GET  /admin/metrics
-GET  /admin/compression
-POST /admin/compression
-POST /admin/switch
-POST /config
-```
-
-Examples:
-
-```bash
-curl -fsS http://localhost:8080/admin/profiles
-curl -fsS http://localhost:8080/admin/current
-curl -fsS http://localhost:8080/admin/health
-curl -fsS http://localhost:8080/admin/metrics
-curl -fsS -X POST http://localhost:8080/admin/switch \
-  -H 'Content-Type: application/json' \
-  -d '{"id":"deepseek-reasoner"}'
-curl -fsS -X POST http://localhost:8080/admin/compression \
-  -H 'Content-Type: application/json' \
-  -d '{"enabled":true,"maxMessages":32,"keepRecent":12}'
-```
-
-Admin responses redact API keys.
-
-With `CC_FLUX_ADMIN_TOKEN=secret`:
-
-```bash
-curl -fsS http://localhost:8080/admin/health \
-  -H 'Authorization: Bearer secret'
-```
-
-## Reasoning Output
-
-DeepSeek R1 streams `reasoning_content` separately from answer text. CC-Flux emits that reasoning as ordinary Anthropic-compatible text:
-
-```text
-<thinking>
-reasoning tokens from the provider
-</thinking>
-
-final answer
-```
-
-CC-Flux does not emit Anthropic-native thinking blocks because those require Anthropic signature deltas that third-party providers cannot generate.
-
-## History Compression
-
-Compression is disabled by default. When enabled, CC-Flux compresses old converted messages before sending the request upstream.
-
-The deterministic compressor:
-
-- preserves leading system messages
-- preserves recent messages exactly
-- keeps assistant tool calls and matching tool results together
-- removes `reasoning_content` fields from upstream-shaped messages
-- summarizes older plain turns into one synthetic context message
-- does not write conversation contents to disk
-
-Enable through environment, provider profiles, CLI, TUI, or Admin API.
-
-## Local Models
-
-For Ollama/local providers:
-
-- Use a profile with `provider: "ollama"`.
-- Use an OpenAI-compatible base URL such as `http://localhost:11434/v1`.
-- Retry mode is automatically enabled for `ollama`, or can be forced with `RETRY_ENABLED=true`.
+---
 
 ## Development
 
-Run the proxy tests:
+### Run tests
 
 ```bash
-cd proxy
-npm test
+# Proxy tests
+cd proxy && npm test
+
+# TUI tests
+cd tui && go test -count=1 ./...
 ```
 
-Run TUI tests and build:
+### Build TUI
 
 ```bash
-cd tui
-GOCACHE=/tmp/go-build-cache go test -count=1 ./...
-GOCACHE=/tmp/go-build-cache go build -o cc-flux .
+cd tui && go build -o cc-flux .
 ```
 
-Run the same local CI sequence from the repository root:
+### Run local CI
 
 ```bash
 ./scripts/ci.sh
 ```
 
-Full local smoke example:
+### Local smoke test
 
 ```bash
-cd proxy
-PORT=18080 CC_FLUX_PROVIDERS_PATH=../tui/providers.json npm start
-```
+# Terminal 1: Start proxy
+cd proxy && PORT=18080 CC_FLUX_PROVIDERS_PATH=../tui/providers.json npm start
 
-In another terminal:
-
-```bash
+# Terminal 2: Run CLI commands
 CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js profiles
-CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js switch deepseek-reasoner
-CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js compression on
-CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js health
-CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js metrics
 CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js current
+CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js switch deepseek-reasoner
+CC_FLUX_ADMIN_URL=http://127.0.0.1:18080 node proxy/bin/cc-flux.js health
 ```
+
+---
+
+## Admin API
+
+CC-Flux exposes a local Admin API:
+
+```http
+GET  /admin/profiles     # List provider profiles
+GET  /admin/current      # Show current config
+GET  /admin/health       # Show health status
+GET  /admin/metrics      # Show metrics counters
+GET  /admin/compression  # Show compression settings
+POST /admin/compression  # Update compression
+POST /admin/switch       # Switch to a profile
+```
+
+With token protection:
+
+```bash
+curl -fsS http://localhost:8080/admin/health \
+  -H 'Authorization: Bearer your-token'
+```
+
+---
+
+## Features
+
+- **Claude Code gateway**: Point Claude Code at `http://localhost:8080`
+- **OpenAI-compatible routing**: Converts Anthropic requests to chat completions
+- **Hot switching**: Switch providers without restarting Claude Code
+- **Restart-stable state**: Active profile persists across restarts
+- **DeepSeek reasoning**: Streams `reasoning_content` as readable `<thinking>` text
+- **History compression**: Deterministic local compression for long sessions
+- **Ollama support**: Built-in retry mode for local models
+- **Security**: Binds to `127.0.0.1` by default, optional Admin token protection
+
+---
 
 ## Roadmap
 
-- [x] Phase 1: Core Node.js proxy and Anthropic-to-OpenAI mapping.
-- [x] Phase 2: Go-based interactive model selector.
-- [x] Phase 3: Ollama/local-model optimization and retry behavior.
-- [x] Phase 4: DeepSeek reasoning visibility and deterministic history compression.
-- [x] Phase 5: Localhost-safe defaults, Admin API auth, health/metrics, setup/doctor commands, and provider capabilities.
+- [x] Phase 1: Core Node.js proxy and Anthropic-to-OpenAI mapping
+- [x] Phase 2: Go-based interactive model selector
+- [x] Phase 3: Ollama/local-model optimization and retry behavior
+- [x] Phase 4: DeepSeek reasoning visibility and history compression
+- [x] Phase 5: Security defaults, Admin API auth, health/metrics, setup/doctor
+- [ ] Phase 6: Productization and developer experience improvements
 
-## Security
-
-- API keys stay local in environment variables or provider profile files.
-- Admin API, CLI, and TUI status responses redact API keys.
-- TCP mode binds to `127.0.0.1` by default. Use `HOST=0.0.0.0` only for deliberate LAN/container exposure.
-- Set `CC_FLUX_ADMIN_TOKEN` to require bearer-token auth for `/admin/*` and legacy `POST /config`.
-- `~/.cc-flux/state.json` stores only the active profile id.
-- Compression summaries are sent only to the selected upstream provider as part of the active request and are not persisted by CC-Flux.
+---
 
 ## License
 
